@@ -1,0 +1,16 @@
+{
+  "eslint.workingDirectories": [
+    "frontend"
+  ],
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.tsserver.maxTsServerMemory": 4096,
+  "search.exclude": {
+    "**/.next": true,
+    "**/node_modules": true,
+    "**/.venv": true
+  },
+  "files.exclude": {
+    "**/.next": true
+  }
+}

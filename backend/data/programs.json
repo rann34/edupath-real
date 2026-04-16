@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "name": "Génie Logiciel",
+    "description": "Programmation, développement web, algorithmes, bases de données, intelligence artificielle, systèmes d'exploitation.",
+    "min_score": 12.5,
+    "university": "Université de Tunis",
+    "duration": "3 ans"
+  },
+  {
+    "id": 2,
+    "name": "Médecine",
+    "description": "Anatomie, physiologie, biologie humaine, diagnostic, soins aux patients, éthique médicale.",
+    "min_score": 15.0,
+    "university": "Faculté de Médecine de Tunis",
+    "duration": "7 ans"
+  },
+  {
+    "id": 3,
+    "name": "Architecture",
+    "description": "Conception spatiale, dessin technique, histoire de l'art, urbanisme, matériaux de construction.",
+    "min_score": 13.0,
+    "university": "ENAU",
+    "duration": "5 ans"
+  },
+  {
+    "id": 4,
+    "name": "Finance",
+    "description": "Mathématiques financières, comptabilité, gestion de portefeuille, économie, analyse de risques.",
+    "min_score": 12.0,
+    "university": "IHEC Carthage",
+    "duration": "3 ans"
+  },
+  {
+    "id": 5,
+    "name": "Journalisme",
+    "description": "Rédaction, investigation, éthique des médias, communication, reportage audiovisuel.",
+    "min_score": 11.0,
+    "university": "IPSI",
+    "duration": "3 ans"
+  }
+]

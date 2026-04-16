@@ -38,9 +38,9 @@ function getBranchSubjectConfig(stream: string) {
   }
   if (s.includes("science") && !s.includes("math")) {
     return {
-      subject1Label: "Biology Grade",
+      subject1Label: "science Grade",
       subject2Label: "Physics Grade",
-      subject3Label: "Chemistry Grade",
+      subject3Label: "Mathematics Grade",
       subject1Hint: "Core science subject for this branch",
       subject2Hint: "Core science subject for this branch",
       subject3Hint: "Core science subject for this branch",
@@ -124,143 +124,306 @@ function inferUniversityField(univ: UniversityCard): "Engineering" | "Medicine" 
 function DashboardHome({
   goSection,
   userName,
+  user,
   profileCompletion,
   bacAverage,
   universitiesMatched,
-  suggestedSpecialities,
 }: {
   goSection: (section: string) => void;
   userName: string;
+  user: any;
   profileCompletion: number;
   bacAverage: number;
   universitiesMatched: number;
-  suggestedSpecialities: Array<{
-    label: string;
-    university: string;
-    minScore: number;
-    fit: number;
-    reason: string;
-    scoreDetails: string[];
-  }>;
 }) {
-  const aiTopCards = suggestedSpecialities.slice(0, 3).map((item) => {
+  const [aiRecommendations, setAiRecommendations] = useState<any[]>([]);
+  const [isLoadingAI, setIsLoadingAI] = useState(true);
+  const [aiError, setAiError] = useState("");
+  const [openRecommendation, setOpenRecommendation] = useState<string | null>(null);
+
+ useEffect(() => {
+  async function fetchAIRecommendations() {
+    if (!user) return;
+    
+    setIsLoadingAI(true);
+    setAiError("");
+    
+    const stream = user.bac_stream || "Sciences";
+    const avg = user.bac_average || 0;
+    const math = user.math_grade || 0;
+    const physics = user.physics_grade || 0;
+    const subject3 = user.subject3_grade || 0;
+    const wilaya = user.wilaya || "Algiers";
+    
+    try {
+      const data = await api("/api/ai/recommend", {
+        method: "POST",
+        body: {
+          bac_stream: stream,
+          bac_average: avg,
+          math_grade: math,
+          physics_grade: physics,
+          subject3_grade: subject3,
+          wilaya,
+        },
+      });
+
+      if (data.recommendations) {
+        const formatted = data.recommendations.map((rec: any) => ({
+          label: rec.program.name,
+          university: rec.program.university,
+          minScore: rec.program.min_score,
+          minScore1: rec.program.min_score_1,
+          minScore2: rec.program.min_score_2,
+          minScore3: rec.program.min_score_3,
+          city: rec.program.city,
+          modules: rec.program.modules || [],
+          fit: Math.round(rec.match_percentage),
+          eligible: rec.eligible,
+          recommendationLevel: rec.recommendation_level,
+          reason: rec.reason,
+          whyRecommended: rec.why_recommended || [],
+          subjectBreakdown: rec.subject_breakdown || [],
+          scoreDetails: [`Required BAC: ${rec.program.min_score}/20`],
+        }));
+        setAiRecommendations(formatted);
+      } else {
+        setAiRecommendations([]);
+        setAiError("No recommendations were returned.");
+      }
+    } catch (error: unknown) {
+      setAiRecommendations([]);
+      setAiError(error instanceof Error ? error.message : "AI recommendations are temporarily unavailable.");
+    } finally {
+      setIsLoadingAI(false);
+    }
+  }
+  
+  fetchAIRecommendations();
+}, [user, user?.bac_average, user?.math_grade, user?.physics_grade, user?.subject3_grade, user?.wilaya]);
+
+  const aiTopCards = aiRecommendations.slice(0, 3).map((item) => {
     const visual = recommendationVisual(getSpecialityTrack(item.label));
     return {
-      title: `${item.university} - ${item.label}`,
-      subtitle: `${item.university} - ${visual.area}`,
-      match: `${item.fit}% Match`,
+      title: item.label,
+      university: item.university,
+      subtitle: `${item.city} • ${visual.area}`,
+      status: item.eligible ? "Eligible Now" : "Near Threshold",
+      statusTone: item.eligible
+        ? "border-emerald-400/25 bg-emerald-400/12 text-emerald-100"
+        : "border-amber-300/25 bg-amber-400/12 text-amber-100",
       gradient: visual.gradient,
       icon: visual.icon,
       reason: item.reason,
+      whyRecommended: item.whyRecommended,
+      subjectBreakdown: item.subjectBreakdown,
+      modules: item.modules,
+      recommendationLevel: item.recommendationLevel,
+      fit: item.fit,
+      minScore: item.minScore,
     };
   });
+  const topRecommendation = aiTopCards[0];
+  const eligibleCount = aiTopCards.filter((item) => item.status === "Eligible Now").length;
+  const topGap =
+    topRecommendation && bacAverage > 0
+      ? Math.max(0, Number(topRecommendation.minScore) - bacAverage)
+      : 0;
+  const nextStepItems = [
+    eligibleCount > 0
+      ? `${eligibleCount} speciality${eligibleCount > 1 ? "ies are" : " is"} already within your current BAC range.`
+      : "No speciality is fully unlocked yet with the current BAC profile.",
+    topRecommendation
+      ? topGap > 0
+        ? `You are ${topGap.toFixed(2)} point${topGap >= 2 ? "s" : ""} away from your top current option.`
+        : `${topRecommendation.title} is currently your strongest accessible option.`
+      : "Complete your profile to unlock stronger recommendation details.",
+    user?.wilaya
+      ? `Priority is currently given to options near ${user.wilaya}.`
+      : "Add your wilaya to improve local university suggestions.",
+  ];
 
   return (
-    <section className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="mb-2 text-3xl font-bold">Welcome back, {userName}!</h1>
-          <p className="text-blue-300">Let&apos;s find your perfect university path</p>
+    <section className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="max-w-2xl">
+          <p className="text-sm font-medium text-blue-300/80">Dashboard</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white lg:text-[3.2rem]">Welcome back, {userName}!</h1>
+          <p className="mt-2 text-[15px] text-blue-300/85">Your current profile, eligibility, and recommended options in one place.</p>
         </div>
-        <button className="glass-panel relative rounded-2xl p-3">
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl border border-white/8 bg-white/[0.04] px-4 py-2.5">
+            <p className="text-xs text-blue-200/60">Current focus</p>
+            <p className="mt-1 text-sm font-semibold text-white">Eligible specialties first</p>
+          </div>
+          <button className="rounded-xl border border-white/8 bg-white/[0.04] p-3 transition hover:bg-white/[0.08]">
+            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           [`${profileCompletion}%`, "Profile Complete", profileCompletion > 0 ? "+progress" : "Start", "bg-blue-500/20", "text-blue-300", "\u{2705}"],
           [`${universitiesMatched}`, "Universities Matched", universitiesMatched > 0 ? "Ready" : "New", "bg-green-500/20", "text-green-400", "\u{1F3EB}"],
           [bacAverage.toFixed(2), "BAC Average", bacAverage > 0 ? "Updated" : "Pending", "bg-purple-500/20", "text-purple-300", "\u{1F4C8}"],
-          ["0", "Days to Deadline", "Soon", "bg-orange-500/20", "text-orange-300", "\u{23F0}"],
+          [topRecommendation?.title || "Pending", "Top Match", topRecommendation ? topRecommendation.status : "Waiting", "bg-cyan-500/20", "text-cyan-300", "\u{1F3AF}"],
         ].map(([v, l, t, iconBg, trendColor, sticker]) => (
-          <div key={l} className="stat-card glass-panel card-hover rounded-3xl p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-xl shadow-[0_8px_18px_rgba(15,31,63,0.35)] ring-1 ring-white/10 ${iconBg}`}>
+          <div key={l} className="rounded-2xl border border-white/8 bg-slate-900/28 px-5 py-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg ring-1 ring-white/10 ${iconBg}`}>
                 <span>{sticker}</span>
               </div>
-              <span className={`text-sm font-medium ${trendColor}`}>{t}</span>
+              <span className={`text-xs font-medium ${trendColor}`}>{t}</span>
             </div>
-            <h3 className="mb-1 text-3xl font-bold">{v}</h3>
-            <p className="text-2xl text-blue-300">{l}</p>
+            <h3 className={`leading-none text-white ${l === "Top Match" ? "text-lg font-semibold" : "text-3xl font-bold"}`}>{v}</h3>
+            <p className="mt-2 text-[15px] text-blue-200/90">{l}</p>
           </div>
         ))}
       </div>
 
-      <div className="glass-panel rounded-3xl p-6">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 to-purple-500 text-xl shadow-[0_6px_16px_rgba(44,115,255,0.35)]">
-            <span>{"\u{1F4A1}"}</span>
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">AI Recommendations</h2>
-            <p className="text-base text-blue-300">Based on your profile and preferences</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {aiTopCards.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-blue-200 md:col-span-3">
-              Complete your profile to unlock AI recommendations tailored to your BAC branch and grades.
+      <div className="rounded-3xl border border-white/8 bg-slate-900/30 p-6">
+        <div className="mb-6 flex flex-col gap-4 border-b border-white/8 pb-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 text-lg">
+              <span>{"\u{1F4A1}"}</span>
             </div>
-          ) : aiTopCards.map((card) => (
-            <button key={card.title} onClick={() => goSection("universities")} className={`card-hover rounded-2xl border border-white/10 bg-gradient-to-br ${card.gradient} p-5 text-left`}>
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 text-lg ring-1 ring-white/20">
-                  <span>{card.icon}</span>
-                </div>
-                <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold">{card.match}</span>
-              </div>
-              <h3 className="text-xl font-bold">{card.title}</h3>
-              <p className="text-base text-blue-200">{card.subtitle}</p>
-              <p className="mt-2 text-xs text-blue-200">{card.reason}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="glass-panel rounded-3xl p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">Suggested Specialities</h2>
-            <p className="text-base text-blue-300">Based on your BAC profile and subject grades</p>
+            <div>
+              <p className="text-sm font-medium text-blue-300/80">Decision Support</p>
+              <h2 className="mt-1 text-2xl font-bold">AI Recommendations</h2>
+              <p className="mt-2 max-w-2xl text-sm text-blue-300">Based on your BAC profile, grades, and actual admission thresholds.</p>
+            </div>
           </div>
-          <button onClick={() => goSection("universities")} className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm transition hover:bg-white/20">
-            Explore all
-          </button>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-white/8 bg-white/[0.04] px-4 py-3">
+              <p className="text-xs text-blue-200/60">Top Match</p>
+              <p className="mt-1 text-sm font-semibold text-white">{aiTopCards[0]?.title || "Pending"}</p>
+            </div>
+            <div className="rounded-xl border border-white/8 bg-white/[0.04] px-4 py-3">
+              <p className="text-xs text-blue-200/60">Selection Rule</p>
+              <p className="mt-1 text-sm font-semibold text-white">BAC + subject thresholds</p>
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {suggestedSpecialities.length === 0 ? (
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {isLoadingAI ? (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-blue-200 md:col-span-3">
-              Add your BAC average and grades in Profile to unlock speciality suggestions.
+              🧠 AI is analyzing your profile...
+            </div>
+          ) : aiError ? (
+            <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-100 md:col-span-3">
+              {aiError}
+            </div>
+          ) : aiTopCards.length === 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-blue-200 md:col-span-3">
+              No AI recommendations yet for this profile.
             </div>
           ) : (
-            suggestedSpecialities.map((item) => (
-              <button
-                key={`${item.university}-${item.label}`}
-                onClick={() => goSection("universities")}
-                className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:bg-white/10"
+            aiTopCards.map((card) => (
+              <div
+                key={`${card.university}-${card.title}`}
+                className="rounded-2xl border border-white/8 bg-slate-950/22 p-4 text-left"
               >
-                <p className="text-lg font-semibold">{item.label}</p>
-                <p className="text-sm text-blue-300">{item.university}</p>
-                <div className="mt-3 flex items-center justify-between text-sm">
-                  <span className="rounded-full bg-white/10 px-2 py-1 text-blue-200">Min {item.minScore.toFixed(2)}</span>
-                  <span className="rounded-full bg-cyan-500/20 px-2 py-1 text-cyan-200">Fit {item.fit}%</span>
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/8 text-lg ring-1 ring-white/10">
+                    <span>{card.icon}</span>
+                  </div>
+                  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${card.statusTone}`}>{card.status}</span>
                 </div>
-                <p className="mt-2 text-xs text-blue-300">{item.reason}</p>
-                {item.scoreDetails.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {item.scoreDetails.slice(0, 3).map((detail) => (
-                      <span key={detail} className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-blue-200">
-                        {detail}
-                      </span>
-                    ))}
+
+                <h3 className="text-lg font-bold text-white">{card.title}</h3>
+                <p className="mt-1 text-sm text-blue-200">{card.university}</p>
+                <p className="mt-1 text-xs text-blue-300/80">{card.subtitle}</p>
+
+                <div className="mt-3 grid grid-cols-2 gap-2.5">
+                  <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-blue-200/65">Required BAC</p>
+                    <p className="mt-1 text-base font-semibold text-white">{card.minScore}/20</p>
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-blue-200/65">Profile Fit</p>
+                    <p className="mt-1 text-base font-semibold text-white">{card.fit}%</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-sm">
+                  <span className="text-blue-300/75">Recommendation Level</span>
+                  <span className="font-semibold text-white">{card.recommendationLevel}</span>
+                </div>
+
+                <div className="mt-3 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenRecommendation((prev) =>
+                        prev === `${card.university}-${card.title}` ? null : `${card.university}-${card.title}`,
+                      )
+                    }
+                    className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+                  >
+                    {openRecommendation === `${card.university}-${card.title}` ? "Hide explanation" : "Why this recommendation?"}
+                  </button>
+                </div>
+
+                {openRecommendation === `${card.university}-${card.title}` ? (
+                  <div className="mt-3 space-y-3 rounded-xl border border-white/8 bg-white/[0.03] p-4">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.16em] text-blue-200/65">Why This Recommendation</p>
+                      <p className="mt-2 text-sm leading-6 text-blue-100">{card.reason}</p>
+                      {card.whyRecommended?.length ? (
+                        <div className="mt-3 space-y-2">
+                          {card.whyRecommended.slice(0, 3).map((line: string, index: number) => (
+                            <p key={index} className="text-sm leading-6 text-blue-100/90">
+                              • {line}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {card.subjectBreakdown?.length ? (
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-blue-200/65">Your Grades vs Requirements</p>
+                        <div className="mt-3 space-y-2">
+                          {card.subjectBreakdown.map((item: any) => (
+                            <div key={item.label} className="flex items-center justify-between gap-3 text-sm">
+                              <span className="text-blue-100">{item.label}</span>
+                              <span className="text-blue-200/85">
+                                {item.grade}/20 vs {item.threshold}/20
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {card.modules?.length ? (
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-blue-200/65">Key Modules</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {card.modules.slice(0, 4).map((module: string) => (
+                            <span key={module} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-blue-100">
+                              {module}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
-              </button>
+
+                <button
+                  type="button"
+                  onClick={() => goSection("universities")}
+                  className="mt-3 text-sm font-semibold text-cyan-200 transition hover:text-cyan-100"
+                >
+                  View university options →
+                </button>
+              </div>
             ))
           )}
         </div>
@@ -277,11 +440,22 @@ function DashboardHome({
           </div>
         </div>
         <div className="glass-panel rounded-2xl p-6">
-          <h3 className="mb-4 text-lg font-bold">Orientation Timeline</h3>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between"><span>BAC Results Released</span><span className="text-green-400">Completed</span></div>
-            <div className="flex justify-between"><span>Pre-inscription Period</span><span className="text-blue-400">Active</span></div>
-            <div className="flex justify-between"><span>Final Results</span><span className="text-white/60">Upcoming</span></div>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-bold">What to Improve</h3>
+              <p className="mt-1 text-sm text-blue-200/75">Short guidance based on your profile and current recommendations.</p>
+            </div>
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100">
+              {topRecommendation ? topRecommendation.status : "Profile needed"}
+            </div>
+          </div>
+          <div className="space-y-3">
+            {nextStepItems.map((item) => (
+              <div key={item} className="flex items-start gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-blue-100">
+                <span className="mt-0.5 text-cyan-300">•</span>
+                <span>{item}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -292,6 +466,9 @@ function DashboardHome({
 type UniversitySpeciality = {
   name: string;
   minScore: string;
+  minScore1?: string;
+  minScore2?: string;
+  minScore3?: string;
   modules: string[];
 };
 
@@ -303,9 +480,53 @@ type UniversityCard = {
   city: string;
   gradient: string;
   icon: string;
+  image?: string;
+  imageMode?: "photo" | "logo";
+  logoText?: string;
+  website?: string;
   badge: string;
   specialities: UniversitySpeciality[];
 };
+
+const UNIVERSITY_MEDIA: Record<string, { image?: string; imageMode?: "photo" | "logo"; logoText?: string }> = {
+  "ENP": { image: "https://www.enp.edu.dz/storage/2020/06/logoBlanc-300x262.png", imageMode: "logo", logoText: "ENP" },
+  "ESI": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/ESI_Logo.png", imageMode: "logo", logoText: "ESI" },
+  "HEC Algiers": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Logo_hec.jpg", imageMode: "logo", logoText: "HEC" },
+  "USTHB": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/USTHB.JPG", imageMode: "photo", logoText: "USTHB" },
+  "USTO-MB": { image: "https://www.univ-usto.dz/wp-content/uploads/2023/11/cropped-cropped-cropped-USTOLOGO-1-scaled-1.png", imageMode: "logo", logoText: "USTO-MB" },
+  "University of Algiers 1": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Med%20Alger.jpg", imageMode: "photo", logoText: "UA1" },
+  "University of Algiers 1 - Faculty of Sciences": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Main_building_of_the_University_of_Algiers_-_Pavillon_gauche.jpg", imageMode: "photo", logoText: "SCI" },
+  "University of Algiers 2": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/%D9%85%D8%B9%D9%84%D9%85_%D8%AC%D8%A7%D9%85%D8%B9%D8%A9_%D8%A7%D9%84%D8%AC%D8%B2%D8%A7%D8%A6%D8%B1_02.jpg", imageMode: "photo", logoText: "UA2" },
+  "University of Bejaia": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Tasdawit%20n%20Bgayet%2002.jpg", imageMode: "photo", logoText: "UB" },
+  "University of Blida 1": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Universit%C3%A9_Saad_Dahleb_%D8%AC%D8%A7%D9%85%D8%B9%D8%A9_%D8%B3%D8%B9%D8%AF_%D8%AF%D8%AD%D9%84%D8%A8_-_panoramio.jpg", imageMode: "photo", logoText: "UB1" },
+  "University of Constantine 1": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/%D8%A7%D9%84%D8%A8%D8%B1%D8%AC_%D8%A7%D9%84%D8%A5%D8%AF%D8%A7%D8%B1%D9%8A_%D9%84%D8%AC%D8%A7%D9%85%D8%B9%D8%A9_%D8%A7%D9%84%D8%A5%D8%AE%D9%88%D8%A9_%D9%85%D9%86%D8%AA%D9%88%D8%B1%D9%8A_%D9%82%D8%B3%D9%86%D8%B7%D9%8A%D9%86%D8%A9.jpg", imageMode: "photo", logoText: "UC1" },
+  "University of Oran 1": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/LOGO_UNIV_ORAN_1_Anglais.png", imageMode: "logo", logoText: "UO1" },
+};
+
+function attachUniversityImage(univ: UniversityCard): UniversityCard {
+  const media = UNIVERSITY_MEDIA[univ.name];
+  const websites: Record<string, string> = {
+    "ENP": "https://www.enp.edu.dz/en/",
+    "ESI": "https://www.esi.dz/en/home/",
+    "HEC Algiers": "https://hec.dz/newsite/?lang=en",
+    "USTHB": "https://www.usthb.dz/",
+    "USTO-MB": "https://www.univ-usto.dz/en/",
+    "University of Algiers 1": "https://www.univ-alger.dz/",
+    "University of Algiers 1 - Faculty of Sciences": "https://www.univ-alger.dz/",
+    "University of Algiers 2": "https://www.univ-alger2.dz/index.php/en/",
+    "University of Bejaia": "https://www.univ-bejaia.dz/en/",
+    "University of Blida 1": "https://www.univ-blida.dz/en/",
+    "University of Constantine 1": "https://www.umc.edu.dz/",
+    "University of Oran 1": "https://univ-oran1.dz/language/en/",
+  };
+  return {
+    ...univ,
+    image: media?.image || univ.image,
+    imageMode: media?.imageMode || univ.imageMode,
+    logoText: media?.logoText || univ.logoText,
+    website: websites[univ.name] || univ.website,
+  };
+}
 
 const universityCards: UniversityCard[] = [
   {
@@ -498,273 +719,9 @@ const universityCards: UniversityCard[] = [
       { name: "Management", minScore: "15.00", modules: ["Human Resources", "Business Strategy", "Operations", "Leadership"] },
     ],
   },
-];
+].map(attachUniversityImage);
 
-function suggestSpecialitiesForStudent({
-  bacAverage,
-  mathGrade,
-  physicsGrade,
-  subject3Grade,
-  bacStream,
-  wilaya,
-}: {
-  bacAverage: number;
-  mathGrade: number;
-  physicsGrade: number;
-  subject3Grade: number;
-  bacStream: string;
-  wilaya: string;
-}) {
-  if (bacAverage <= 0) {
-    return [] as Array<{
-      label: string;
-      university: string;
-      minScore: number;
-      fit: number;
-      reason: string;
-      scoreDetails: string[];
-    }>;
-  }
 
-  const stream = normalizeBacStream(bacStream).toLowerCase();
-  const isMath = stream.includes("math");
-  const isExperimentalScience = stream.includes("science") && !isMath;
-  const isScience = stream.includes("science") || isMath || isExperimentalScience;
-  const isTech = stream.includes("technique");
-  const isBusiness = stream.includes("gestion") || stream.includes("economie") || stream.includes("commerce");
-  const isHumanities = stream.includes("lettres") || stream.includes("philo");
-  const branchConfig = getBranchSubjectConfig(bacStream);
-  const subject1Grade = Number(mathGrade || 0);
-  const subject2Grade = Number(physicsGrade || 0);
-  const subject3 = Number(subject3Grade || 0);
-  const userWilaya = (wilaya || "").trim().toLowerCase();
-
-  function cityProximityBoost(universityCity: string) {
-    const city = (universityCity || "").trim().toLowerCase();
-    if (!userWilaya || !city) return { fit: 0, priority: 0, detail: "" };
-    if (userWilaya === city) return { fit: 10, priority: 18, detail: "+10 same city priority" };
-    if (
-      (userWilaya === "algiers" && city === "blida") ||
-      (userWilaya === "blida" && city === "algiers")
-    ) {
-      return { fit: 6, priority: 10, detail: "+6 nearby city priority" };
-    }
-    if (
-      (userWilaya === "bejaia" && (city === "setif" || city === "jijel")) ||
-      ((userWilaya === "setif" || userWilaya === "jijel") && city === "bejaia")
-    ) {
-      return { fit: 4, priority: 6, detail: "+4 regional proximity" };
-    }
-    return { fit: 0, priority: 0, detail: "" };
-  }
-
-  const candidates = universityCards.flatMap((univ) =>
-    univ.specialities
-      .map((sp) => {
-      const min = Number(sp.minScore);
-      const gap = bacAverage - min;
-      let fit = 66 + gap * 10;
-      let reason = gap >= 0 ? "Your BAC is above this speciality threshold." : "Close to threshold; improve key modules to maximize your chance.";
-      const details: string[] = [];
-
-      if (gap >= 0) details.push(`+${Math.round(gap * 10)} BAC gap`);
-      else details.push(`${Math.round(gap * 10)} BAC gap`);
-
-      const track = getSpecialityTrack(sp.name);
-      const isComputing = track === "Computing";
-      const isEngineering = track === "Engineering";
-      const isHealth = track === "Health";
-      const isMgmt = track === "Business";
-      const isHumanitiesTrack = track === "Humanities" || track === "SocialLaw";
-      const lname = sp.name.toLowerCase();
-      const isCivilLike = lname.includes("civil") || lname.includes("chemical");
-      const isElectroLike = lname.includes("electronics") || lname.includes("electrical") || lname.includes("telecom");
-      const hasStrongMathPhysics = subject1Grade >= 14 && subject2Grade >= 14;
-      let sortPriority = 0;
-      const cityBoost = cityProximityBoost(univ.city);
-      if (cityBoost.fit !== 0) {
-        fit += cityBoost.fit;
-        sortPriority += cityBoost.priority;
-        if (cityBoost.detail) details.push(cityBoost.detail);
-      }
-
-      if (isComputing) {
-        const mathBoost = Math.max(0, subject1Grade - 10) * 1.8;
-        const supportBoost = Math.max(0, subject3 - 10) * 0.8;
-        fit += mathBoost;
-        fit += supportBoost;
-        if (mathBoost > 0) details.push(`+${Math.round(mathBoost)} ${branchConfig.subject1Label.toLowerCase()}`);
-        if (supportBoost > 0) details.push(`+${Math.round(supportBoost)} ${branchConfig.subject3Label.toLowerCase()}`);
-        if (isMath) {
-          fit += 12;
-          details.push("+12 branch match");
-        } else if (isScience || isTech) {
-          fit += 7;
-          details.push("+7 branch support");
-        } else if (isHumanities) {
-          fit -= 12;
-          details.push("-12 branch mismatch");
-        }
-        reason = isHumanities
-          ? "This path is math-intensive; your BAC branch may require extra preparation."
-          : "Good match when logic and quantitative foundations are strong.";
-        if (isMath) {
-          const mathStreamBonus = hasStrongMathPhysics ? 12 : 8;
-          fit += mathStreamBonus;
-          sortPriority += 40;
-          details.push(`+${mathStreamBonus} maths->computing priority`);
-          reason = "Top match for Mathematics BAC with strong logic and quantitative profile.";
-        }
-      } else if (isEngineering) {
-        const physicsBoost = Math.max(0, subject2Grade - 10) * 1.8;
-        const mathBoost = Math.max(0, subject1Grade - 10) * 1.2;
-        const supportBoost = Math.max(0, subject3 - 10) * 0.8;
-        fit += physicsBoost + mathBoost + supportBoost;
-        if (physicsBoost > 0) details.push(`+${Math.round(physicsBoost)} ${branchConfig.subject2Label.toLowerCase()}`);
-        if (mathBoost > 0) details.push(`+${Math.round(mathBoost)} ${branchConfig.subject1Label.toLowerCase()}`);
-        if (supportBoost > 0) details.push(`+${Math.round(supportBoost)} ${branchConfig.subject3Label.toLowerCase()}`);
-        if (isMath || isTech) {
-          fit += 12;
-          details.push("+12 branch match");
-        } else if (isScience) {
-          fit += 7;
-          details.push("+7 branch support");
-        } else if (isHumanities) {
-          fit -= 14;
-          details.push("-14 branch mismatch");
-        }
-        reason = isHumanities
-          ? "Engineering relies heavily on math/physics; this is a stretch option from your branch."
-          : "Strong fit when math and physics are consistent.";
-        if (isMath && hasStrongMathPhysics) {
-          if (isCivilLike) {
-            fit -= 6;
-            sortPriority -= 10;
-            details.push("-6 lower priority than computing for math stream");
-          } else if (isElectroLike) {
-            fit += 2;
-            sortPriority += 8;
-            details.push("+2 strong technical fit");
-          }
-        }
-      } else if (isHealth) {
-        const bacBoost = Math.max(0, bacAverage - 13) * 1.8;
-        const scienceBoost = Math.max(0, subject3 - 10) * 1.2;
-        fit += bacBoost;
-        fit += scienceBoost;
-        if (bacBoost > 0) details.push(`+${Math.round(bacBoost)} BAC strength`);
-        if (scienceBoost > 0) details.push(`+${Math.round(scienceBoost)} ${branchConfig.subject3Label.toLowerCase()}`);
-        if (isExperimentalScience) {
-          fit += 12;
-          details.push("+12 branch match");
-        } else if (isScience) {
-          fit += 8;
-          details.push("+8 branch support");
-        } else if (isHumanities) {
-          fit -= 14;
-          details.push("-14 branch mismatch");
-        }
-        reason = isHumanities
-          ? "Health studies are science-heavy; this choice may require a bridging effort."
-          : "Best aligned with science-oriented BAC backgrounds.";
-      } else if (isMgmt) {
-        const bacBoost = Math.max(0, bacAverage - 11.5) * 1.4;
-        const subjectBoost =
-          Math.max(0, subject1Grade - 10) * 1.1 +
-          Math.max(0, subject2Grade - 10) * 1.1 +
-          Math.max(0, subject3 - 10) * 0.8;
-        fit += bacBoost;
-        fit += subjectBoost;
-        if (bacBoost > 0) details.push(`+${Math.round(bacBoost)} BAC strength`);
-        if (subjectBoost > 0) details.push(`+${Math.round(subjectBoost)} core subjects`);
-        if (isBusiness) {
-          fit += 12;
-          details.push("+12 branch match");
-        } else if (isHumanities) {
-          fit += 8;
-          details.push("+8 branch support");
-        } else {
-          fit += 4;
-          details.push("+4 broad compatibility");
-        }
-        reason = isHumanities || isBusiness
-          ? "This speciality aligns well with communication, analysis, and social reasoning."
-          : "Balanced option with broad employability.";
-      } else if (isHumanitiesTrack) {
-        const subjectBoost =
-          Math.max(0, subject1Grade - 10) * 1.4 +
-          Math.max(0, subject2Grade - 10) * 1.3 +
-          Math.max(0, subject3 - 10) * 1.1;
-        fit += subjectBoost;
-        if (subjectBoost > 0) details.push(`+${Math.round(subjectBoost)} humanities strengths`);
-        if (isHumanities) {
-          fit += 12;
-          details.push("+12 branch match");
-        } else if (isBusiness) {
-          fit += 6;
-          details.push("+6 branch support");
-        } else {
-          fit += 2;
-          details.push("+2 broad compatibility");
-        }
-        reason = isHumanities
-          ? "Strong alignment with your BAC branch and communication/analysis profile."
-          : "This speciality is possible with strong language and analytical skills.";
-      }
-
-      if (gap < -1.0) {
-        fit -= 14;
-        details.push("-14 below threshold");
-      }
-      if (gap > 1.2) {
-        fit += 4;
-        details.push("+4 margin safety");
-      }
-
-      // Keep realism for branch-speciality mismatch even with high BAC.
-      if (isHumanities && (isComputing || isEngineering || isHealth)) {
-        if (bacAverage < 17.5) {
-          return null;
-        }
-        fit -= 22;
-        fit = Math.min(fit, 64);
-        details.push("reorientation required");
-        reason = "This path is outside your BAC branch and usually requires formal reorientation/bridging.";
-      }
-
-      fit = Math.max(35, Math.min(99, Math.round(fit)));
-
-      return {
-        label: sp.name,
-        university: univ.name,
-        minScore: min,
-        fit,
-        reason,
-        scoreDetails: details,
-        _priority: sortPriority,
-        _gap: gap,
-      };
-      })
-      .filter((item): item is { label: string; university: string; minScore: number; fit: number; reason: string; scoreDetails: string[]; _priority: number; _gap: number } => item !== null),
-  );
-
-  return candidates
-    .sort((a, b) => {
-      if (b.fit !== a.fit) return b.fit - a.fit;
-      if (b._priority !== a._priority) return b._priority - a._priority;
-      if (b._gap !== a._gap) return b._gap - a._gap;
-      return a.minScore - b.minScore;
-    })
-    .slice(0, 3)
-    .map((item) => ({
-      label: item.label,
-      university: item.university,
-      minScore: item.minScore,
-      fit: item.fit,
-      reason: item.reason,
-      scoreDetails: item.scoreDetails,
-    }));
-}
 
 function UniversitiesSection() {
   const detailsRef = useRef<HTMLDivElement | null>(null);
@@ -780,7 +737,7 @@ function UniversitiesSection() {
     api("/universities")
       .then((data) => {
         if (active && Array.isArray(data) && data.length > 0) {
-          setUniversities(data as UniversityCard[]);
+          setUniversities((data as UniversityCard[]).map(attachUniversityImage));
         }
       })
       .catch(() => {});
@@ -875,8 +832,32 @@ function UniversitiesSection() {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredUniversities.map((univ) => (
           <div key={univ.name} className="glass-panel card-hover overflow-hidden rounded-3xl">
-            <div className={`flex h-24 items-center justify-center bg-gradient-to-r ${univ.gradient}`}>
-              <span className="text-3xl">{univ.icon}</span>
+            <div
+              className={`relative flex h-24 items-center justify-center overflow-hidden bg-gradient-to-r ${univ.gradient}`}
+              style={
+                univ.image
+                  ? {
+                      backgroundImage:
+                        univ.imageMode === "logo"
+                          ? `url(${univ.image})`
+                          : `linear-gradient(rgba(9, 18, 32, 0.18), rgba(9, 18, 32, 0.48)), url(${univ.image})`,
+                      backgroundSize: univ.imageMode === "logo" ? "contain" : "cover",
+                      backgroundPosition: "center",
+                      backgroundRepeat: "no-repeat",
+                      backgroundColor: univ.imageMode === "logo" ? "rgba(255,255,255,0.92)" : undefined,
+                    }
+                  : undefined
+              }
+            >
+              {univ.image && univ.imageMode !== "logo" ? (
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/25 to-transparent" />
+              ) : null}
+              {!univ.image && univ.logoText ? (
+                <div className="relative z-10 rounded-2xl border border-white/20 bg-slate-950/20 px-5 py-2 shadow-lg backdrop-blur-sm">
+                  <span className="text-2xl font-extrabold tracking-[0.18em] text-white">{univ.logoText}</span>
+                </div>
+              ) : null}
+              {!univ.image && !univ.logoText ? <span className="relative z-10 text-3xl">{univ.icon}</span> : null}
             </div>
             <div className="p-5">
               <div className="mb-3 flex items-center justify-between">
@@ -885,18 +866,30 @@ function UniversitiesSection() {
               </div>
               <h3 className="mb-2 text-[1.45rem] font-bold leading-tight">{univ.name}</h3>
               <p className="mb-4 min-h-[52px] text-base leading-snug text-blue-300">{univ.desc}</p>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm text-blue-300">Min. Score</p>
                   <p className="text-3xl font-bold text-green-400">{univ.score}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedUniversity(univ)}
-                  className="rounded-xl bg-blue-500 px-6 py-2 text-base font-semibold transition hover:bg-blue-600"
-                >
-                  View Details
-                </button>
+                <div className="flex items-center gap-2">
+                  {univ.website ? (
+                    <a
+                      href={univ.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-xl border border-white/12 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-blue-100 transition hover:bg-white/[0.08]"
+                    >
+                      Official Site
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedUniversity(univ)}
+                    className="rounded-xl bg-blue-500 px-6 py-2 text-base font-semibold transition hover:bg-blue-600"
+                  >
+                    View Details
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -912,6 +905,16 @@ function UniversitiesSection() {
             <div>
               <h2 className="text-3xl font-bold">{selectedUniversity.name} - Specialities</h2>
               <p className="mt-2 text-blue-300">{selectedUniversity.desc}</p>
+              {selectedUniversity.website ? (
+                <a
+                  href={selectedUniversity.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+                >
+                  Visit official website
+                </a>
+              ) : null}
             </div>
             <button
               type="button"
@@ -929,6 +932,9 @@ function UniversitiesSection() {
                   <h3 className="text-xl font-semibold">{speciality.name}</h3>
                   <span className="rounded-full bg-green-500/20 px-3 py-1 text-sm text-green-300">
                     Min moyenne: {speciality.minScore}
+                    {speciality.minScore1 ? ` | Min 1: ${speciality.minScore1}` : ""}
+                    {speciality.minScore2 ? ` | Min 2: ${speciality.minScore2}` : ""}
+                    {speciality.minScore3 ? ` | Min 3: ${speciality.minScore3}` : ""}
                   </span>
                 </div>
                 <p className="mb-2 text-sm text-blue-200">Main modules:</p>
@@ -1314,6 +1320,7 @@ function CareersSection({
     }
     return sorted;
   })();
+  const topCareer = visibleCareers[0];
 
   useEffect(() => {
     if (selectedCareer && detailsRef.current) {
@@ -1323,10 +1330,55 @@ function CareersSection({
 
   return (
     <section className="space-y-8">
-      <div>
-        <h1 className="mb-2 text-3xl font-bold">Career Pathways</h1>
-        <p className="text-blue-300">Explore career options with profile-based fit and practical next steps</p>
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+        <div className="max-w-3xl">
+          <p className="text-sm font-medium text-cyan-200/75">Career Explorer</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-white md:text-4xl">Career paths that match your profile</h1>
+          <p className="mt-3 text-blue-300">Explore realistic options based on your BAC profile, current strengths, and the type of future you want to build.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Top Match</p>
+            <p className="mt-1 text-sm font-semibold text-white">{topCareer?.title || "Not available"}</p>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Profile Context</p>
+            <p className="mt-1 text-sm font-semibold text-white">
+              BAC {bacAverage > 0 ? bacAverage.toFixed(2) : "Not set"} • {bacStream || "Stream not set"}
+            </p>
+          </div>
+        </div>
       </div>
+
+      {topCareer ? (
+        <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-cyan-500/12 via-slate-900/30 to-blue-500/12 p-6 md:p-7">
+          <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr] xl:items-center">
+            <div>
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">Best current fit</span>
+                <span className="rounded-full border border-white/8 bg-white/[0.05] px-3 py-1 text-xs text-blue-100">{topCareer.demand}</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white md:text-3xl">{topCareer.title}</h2>
+              <p className="mt-3 max-w-2xl text-blue-100/90">{topCareer.desc}</p>
+              <p className="mt-4 text-sm text-cyan-100">Suggested focus: {(topCareer.studyFocus || []).slice(0, 3).join(" • ")}</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Fit Score</p>
+                <p className={`mt-2 text-2xl font-bold ${fitTone(topCareer.fitScore || 0)}`}>{topCareer.fitScore || 0}%</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Estimated Salary</p>
+                <p className="mt-2 text-2xl font-bold text-white">{topCareer.salary}</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4">
+                <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Next Step</p>
+                <p className="mt-2 text-sm font-medium text-blue-100">{topCareer.nextStep}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="glass-panel rounded-2xl p-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -1358,25 +1410,37 @@ function CareersSection({
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {visibleCareers.map((career, index) => (
-          <div key={career.title} className="glass-panel card-hover rounded-3xl p-6">
-            <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-2xl shadow-[0_8px_18px_rgba(15,31,63,0.35)] ring-1 ${career.iconBg || "bg-blue-500/20"} ${career.iconRing || "ring-blue-400/25"}`}>
-              <span>{career.icon}</span>
+          <div key={career.title} className="glass-panel card-hover rounded-3xl p-5">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-2xl shadow-[0_8px_18px_rgba(15,31,63,0.35)] ring-1 ${career.iconBg || "bg-blue-500/20"} ${career.iconRing || "ring-blue-400/25"}`}>
+                <span>{career.icon}</span>
+              </div>
+              {index === 0 && sortBy === "Best Fit" ? <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-medium text-cyan-200">Top Match</span> : null}
             </div>
-            <h3 className="mb-2 text-2xl font-bold leading-tight">{career.title}</h3>
-            <p className="mb-4 text-xl leading-snug text-blue-300">{career.desc}</p>
-            <div className="mb-4 flex flex-wrap gap-2">
+            <h3 className="text-xl font-bold leading-tight text-white">{career.title}</h3>
+            <p className="mt-2 min-h-[72px] text-sm leading-6 text-blue-200/90">{career.desc}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
               <span className="rounded-full bg-blue-500/25 px-3 py-1 text-xs font-medium text-blue-100">{career.demand}</span>
               <span className="rounded-full bg-green-500/25 px-3 py-1 text-xs font-medium text-green-300">{career.salary}</span>
               <span className={`rounded-full bg-white/10 px-3 py-1 text-xs font-medium ${fitTone(career.fitScore || 0)}`}>Fit {career.fitScore || 0}%</span>
-              {index === 0 && sortBy === "Best Fit" ? <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-medium text-cyan-200">Top Match</span> : null}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-blue-200/55">Best Study Focus</p>
+                <p className="mt-2 text-sm font-medium text-white">{career.studyFocus?.[0] || "General skills"}</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                <p className="text-[11px] uppercase tracking-[0.16em] text-blue-200/55">Typical Entry</p>
+                <p className="mt-2 text-sm font-medium text-white">{career.opportunities?.[0] || "Career path"}</p>
+              </div>
             </div>
             <button
               type="button"
               onClick={() => setSelectedCareer(career)}
-              className="flex items-center gap-2 text-xl text-blue-300 transition hover:text-blue-200"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
             >
+              <span>View career path</span>
               <span>{"->"}</span>
-              <span>View Career Path</span>
             </button>
           </div>
         ))}
@@ -1407,33 +1471,42 @@ function CareersSection({
             <span className={`rounded-full bg-white/10 px-3 py-1 text-sm ${fitTone(selectedCareer.fitScore || 0)}`}>Fit {selectedCareer.fitScore || 0}%</span>
           </div>
 
-          <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-sm text-blue-200">Suggested focus for this path</p>
-            <p className="mt-2 text-blue-100">{(selectedCareer.studyFocus || []).join(" | ")}</p>
-            <p className="mt-2 text-sm text-cyan-200">Next step: {selectedCareer.nextStep}</p>
+          <div className="mb-4 grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-sm text-blue-200">Suggested focus</p>
+              <p className="mt-2 text-blue-100">{(selectedCareer.studyFocus || []).join(" | ")}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-sm text-blue-200">Best next step</p>
+              <p className="mt-2 text-blue-100">{selectedCareer.nextStep}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-sm text-blue-200">Typical opportunities</p>
+              <p className="mt-2 text-blue-100">{(selectedCareer.opportunities || []).slice(0, 2).join(" | ")}</p>
+            </div>
           </div>
 
           <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-blue-200">Recommended University Tracks</p>
+              <p className="text-sm text-blue-200">Recommended university tracks</p>
               <p className="mt-2 text-blue-100">{(selectedCareer.universityTracks || []).join(" | ")}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-blue-200">Tools / Software to Learn</p>
+              <p className="text-sm text-blue-200">Tools and software to learn</p>
               <p className="mt-2 text-blue-100">{(selectedCareer.tools || []).join(" | ")}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-blue-200">Useful Certifications</p>
+              <p className="text-sm text-blue-200">Useful certifications</p>
               <p className="mt-2 text-blue-100">{(selectedCareer.certifications || []).join(" | ")}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-blue-200">Typical Daily Tasks</p>
+              <p className="text-sm text-blue-200">Typical daily tasks</p>
               <p className="mt-2 text-blue-100">{(selectedCareer.dailyTasks || []).join(" | ")}</p>
             </div>
           </div>
 
           <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-sm text-blue-200">Common Challenges to Expect</p>
+            <p className="text-sm text-blue-200">Common challenges to expect</p>
             <p className="mt-2 text-blue-100">{(selectedCareer.challenges || []).join(" | ")}</p>
           </div>
 
@@ -1482,6 +1555,7 @@ type ProgramOption = {
   minBac: number;
   duration: string;
   degreeType: string;
+  programTrack: string;
   employmentRate: number;
   researchStars: number;
 };
@@ -1503,6 +1577,19 @@ function estimateDegreeType(speciality: string, field: ProgramOption["field"]): 
   if (field === "Engineering") return "Engineering Diploma";
   if (field === "Business") return "Master's";
   return "Bachelor's / Master's";
+}
+
+function estimateProgramTrack(speciality: string, field: ProgramOption["field"], university: string): string {
+  const lower = speciality.toLowerCase();
+  const lowerUniversity = university.toLowerCase();
+
+  if (lower.includes("lmd")) return "LMD";
+  if (lower.includes("classique") || lower.includes("ingenieur") || lower.includes("ingénieur")) return "Ingénieur";
+  if (lower.includes("medicine") || lower.includes("pharmacy") || lower.includes("dentistry")) return "Doctorat";
+  if (field === "Engineering" && (lowerUniversity.includes("enp") || lowerUniversity.includes("esi"))) return "Ingénieur";
+  if (field === "Engineering") return "LMD";
+  if (field === "Business" || field === "Other") return "LMD";
+  return "Standard";
 }
 
 function estimateEmploymentRate(field: ProgramOption["field"], univType: string): number {
@@ -1567,6 +1654,7 @@ function ComparisonSection({ bacAverage, bacStream }: { bacAverage: number; bacS
           minBac: Number(speciality.minScore || univ.score || 0),
           duration: estimateDuration(speciality.name, field),
           degreeType: estimateDegreeType(speciality.name, field),
+          programTrack: estimateProgramTrack(speciality.name, field, univ.name),
           employmentRate: estimateEmploymentRate(field, univ.type),
           researchStars: estimateResearchStars(field, univ.type),
         };
@@ -1665,10 +1753,10 @@ function ComparisonSection({ bacAverage, bacStream }: { bacAverage: number; bacS
                 ))}
               </tr>
               <tr className="border-b border-white/10">
-                <td className="px-4 py-4 text-blue-200">Field</td>
+                <td className="px-4 py-4 text-blue-200">Program Track</td>
                 {selectedPrograms.map((program) => (
                   <td key={`field-${program.id}`} className="px-4 py-4 text-center">
-                    {program.field}
+                    {program.programTrack}
                   </td>
                 ))}
               </tr>
@@ -1788,6 +1876,8 @@ function ProfileSection({
   }, [form.bac_average, form.math_grade, form.physics_grade, form.subject3_grade]);
 
   const branchSubjects = useMemo(() => getBranchSubjectConfig(form.bac_stream), [form.bac_stream]);
+  const inputClass =
+    "w-full rounded-2xl border border-slate-200/10 bg-slate-950/20 px-4 py-3 text-white shadow-inner shadow-black/5 transition placeholder:text-slate-300/40 focus:border-cyan-300/40 focus:bg-slate-950/30";
 
   async function saveProfile() {
     const token = getToken();
@@ -1848,126 +1938,208 @@ function ProfileSection({
         <p className="text-blue-300">Manage your academic information and preferences</p>
       </div>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="glass-panel rounded-2xl p-6">
+        <div className="rounded-[28px] border border-white/10 bg-slate-900/35 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-xl">
           <div className="mb-6 text-center">
             <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-purple-500 text-4xl font-bold">{initial}</div>
             <h2 className="text-xl font-bold">{userName}</h2>
             <p className="text-blue-300">BAC - {userBacStream}</p>
           </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-white/10 py-3"><span className="text-blue-300">Profile Completion</span><span className="font-bold text-green-400">{profileCompletion}%</span></div>
-            <div className="h-2 rounded-full bg-white/10">
+
+          <div className="mb-5 rounded-3xl border border-white/8 bg-white/[0.03] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm text-slate-300/80">Profile Completion</span>
+              <span className="text-lg font-semibold text-emerald-400">{profileCompletion}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-white/8">
               <div className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400" style={{ width: `${profileCompletion}%` }} />
             </div>
-            <div className="flex items-center justify-between border-b border-white/10 py-3"><span className="text-blue-300">Assessments Taken</span><span className="font-bold">0</span></div>
-            <div className="flex items-center justify-between border-b border-white/10 py-3"><span className="text-blue-300">Programs Eligible (min BAC)</span><span className="font-bold">{eligiblePrograms}</span></div>
-            <div className="flex items-center justify-between py-3"><span className="text-blue-300">Orientation Status</span><span className={`font-bold ${orientationLevel.tone}`}>{orientationLevel.text}</span></div>
+            <p className="mt-3 text-xs text-slate-300/65">A more complete profile improves the quality of your orientation results.</p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-300/78">Orientation Status</span>
+                <span className={`text-right text-sm font-semibold ${orientationLevel.tone}`}>{orientationLevel.text}</span>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-300/78">Programs Eligible</span>
+                <span className="text-lg font-semibold text-white">{eligiblePrograms}</span>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-300/78">Assessments Taken</span>
+                <span className="text-lg font-semibold text-white">0</span>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-300/78">Preferred Wilaya</span>
+                <span className="text-sm font-semibold text-white">{form.wilaya}</span>
+              </div>
+            </div>
           </div>
         </div>
         <div className="space-y-6 lg:col-span-2">
-          <div className="glass-panel rounded-2xl p-6">
-            <h3 className="mb-4 text-lg font-bold">Academic Information</h3>
-            <form className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-[28px] border border-white/10 bg-slate-900/35 p-6 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+            <div className="mb-6 border-b border-white/8 pb-5">
               <div>
-                <label className="mb-2 block text-sm font-medium text-blue-200">BAC Branch</label>
-                <select
-                  value={form.bac_stream}
-                  onChange={(e) => setForm((prev) => ({ ...prev, bac_stream: e.target.value }))}
-                  className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3"
-                >
-                  <option>Sciences</option>
-                  <option>Mathematiques</option>
-                  <option>Technique Math</option>
-                  <option>Lettres et Philosophie</option>
-                </select>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200/75">Student Record</p>
+                <h3 className="text-2xl font-semibold text-white">Academic Profile</h3>
+                <p className="mt-1 text-sm text-slate-300/80">Keep your grades and location updated for better recommendations.</p>
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-blue-200">BAC Average</label>
-                <input
-                  type="number"
-                  value={form.bac_average}
-                  onChange={(e) => setForm((prev) => ({ ...prev, bac_average: Number(e.target.value) }))}
-                  step="0.01"
-                  min="0"
-                  max="20"
-                  className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3"
-                />
-                <p className="mt-1 text-xs text-blue-300">Based on current BAC average, you are eligible for about {eligiblePrograms} program(s).</p>
+            </div>
+
+            <form className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-200">BAC Branch</label>
+                  <select
+                    value={form.bac_stream}
+                    onChange={(e) => setForm((prev) => ({ ...prev, bac_stream: e.target.value }))}
+                    className={inputClass}
+                  >
+                    <option>Sciences</option>
+                    <option>Mathematiques</option>
+                    <option>Technique Math</option>
+                    <option>Lettres et Philosophie</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-200">BAC Average</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={form.bac_average}
+                      onChange={(e) => setForm((prev) => ({ ...prev, bac_average: Number(e.target.value) }))}
+                      step="0.01"
+                      min="0"
+                      max="20"
+                      className={`${inputClass} pr-12`}
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-slate-300/65">/20</span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-blue-200">{branchSubjects.subject1Label}</label>
-                <input
-                  type="number"
-                  value={form.math_grade}
-                  onChange={(e) => setForm((prev) => ({ ...prev, math_grade: Number(e.target.value) }))}
-                  step="0.01"
-                  min="0"
-                  max="20"
-                  className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3"
-                />
-                <p className="mt-1 text-xs text-blue-300">{branchSubjects.subject1Hint}</p>
+
+              <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-4 md:p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-base font-semibold text-white">Core Subject Grades</h4>
+                    <p className="text-sm text-slate-300/75">Enter your three main grades used for orientation.</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-200">{branchSubjects.subject1Label}</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={form.math_grade}
+                        onChange={(e) => setForm((prev) => ({ ...prev, math_grade: Number(e.target.value) }))}
+                        step="0.01"
+                        min="0"
+                        max="20"
+                        className={`${inputClass} pr-12`}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-slate-300/65">/20</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-200">{branchSubjects.subject2Label}</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={form.physics_grade}
+                        onChange={(e) => setForm((prev) => ({ ...prev, physics_grade: Number(e.target.value) }))}
+                        step="0.01"
+                        min="0"
+                        max="20"
+                        className={`${inputClass} pr-12`}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-slate-300/65">/20</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-200">{branchSubjects.subject3Label}</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={form.subject3_grade}
+                        onChange={(e) => setForm((prev) => ({ ...prev, subject3_grade: Number(e.target.value) }))}
+                        step="0.01"
+                        min="0"
+                        max="20"
+                        className={`${inputClass} pr-12`}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-slate-300/65">/20</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-blue-200">{branchSubjects.subject2Label}</label>
-                <input
-                  type="number"
-                  value={form.physics_grade}
-                  onChange={(e) => setForm((prev) => ({ ...prev, physics_grade: Number(e.target.value) }))}
-                  step="0.01"
-                  min="0"
-                  max="20"
-                  className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3"
-                />
-                <p className="mt-1 text-xs text-blue-300">{branchSubjects.subject2Hint}</p>
+
+              <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+                <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-4 md:p-5">
+                  <label className="mb-2 block text-sm font-medium text-slate-200">Wilaya of Origin</label>
+                  <select
+                    value={form.wilaya}
+                    onChange={(e) => setForm((prev) => ({ ...prev, wilaya: e.target.value }))}
+                    className={inputClass}
+                  >
+                    {WILAYAS.map((wilaya) => (
+                      <option key={wilaya} style={{ color: "#0b1d33", backgroundColor: "#ffffff" }}>
+                        {wilaya}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs text-slate-300/65">Used to prioritize nearby universities in the recommendation flow.</p>
+                </div>
+
+                <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-4 md:p-5">
+                  <p className="text-sm font-medium text-slate-200">Quick Summary</p>
+                  <div className="mt-4 space-y-3 text-sm">
+                    <div className="flex items-center justify-between border-b border-white/8 pb-3">
+                      <span className="text-slate-300/75">Eligible Programs</span>
+                      <span className="font-semibold text-white">{eligiblePrograms}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-white/8 pb-3">
+                      <span className="text-slate-300/75">Selected Branch</span>
+                      <span className="font-semibold text-white">{form.bac_stream}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-300/75">Preferred Wilaya</span>
+                      <span className="font-semibold text-white">{form.wilaya}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-blue-200">{branchSubjects.subject3Label}</label>
-                <input
-                  type="number"
-                  value={form.subject3_grade}
-                  onChange={(e) => setForm((prev) => ({ ...prev, subject3_grade: Number(e.target.value) }))}
-                  step="0.01"
-                  min="0"
-                  max="20"
-                  className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3"
-                />
-                <p className="mt-1 text-xs text-blue-300">{branchSubjects.subject3Hint}</p>
-              </div>
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-blue-200">Wilaya of Origin</label>
-                <select
-                  value={form.wilaya}
-                  onChange={(e) => setForm((prev) => ({ ...prev, wilaya: e.target.value }))}
-                  className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3"
-                >
-                  {WILAYAS.map((wilaya) => (
-                    <option key={wilaya} style={{ color: "#0b1d33", backgroundColor: "#ffffff" }}>
-                      {wilaya}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button type="button" onClick={saveProfile} disabled={saving} className="glow-btn rounded-xl bg-blue-500 py-3 md:col-span-2 disabled:opacity-60">
-                {saving ? "Saving..." : "Save Changes"}
+            </form>
+
+            <div className="mt-6 flex flex-col gap-3 border-t border-white/8 pt-5 sm:flex-row">
+              <button
+                type="button"
+                onClick={saveProfile}
+                disabled={saving}
+                className="flex-1 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-6 py-3 font-semibold text-white shadow-lg shadow-blue-500/30 transition-all hover:scale-[1.02] hover:shadow-xl disabled:opacity-50 disabled:hover:scale-100"
+              >
+                {saving ? "Saving..." : "💾 Save Changes"}
               </button>
               <button
                 type="button"
                 onClick={resetProfileForm}
                 disabled={saving || !hasUnsavedChanges}
-                className="rounded-xl border border-white/20 bg-white/10 py-3 transition hover:bg-white/20 md:col-span-2 disabled:opacity-50"
+                className="flex-1 rounded-xl border border-white/20 bg-white/10 px-6 py-3 font-medium text-white transition-all hover:bg-white/20 disabled:opacity-50"
               >
-                Reset Changes
+                🔄 Reset Changes
               </button>
-              {hasUnsavedChanges ? <p className="text-sm text-yellow-200 md:col-span-2">You have unsaved changes.</p> : null}
-              {saveMsg ? <p className="text-sm text-blue-200 md:col-span-2">{saveMsg}</p> : null}
-            </form>
-          </div>
-          <div className="glass-panel rounded-2xl p-6">
-            <h3 className="mb-4 text-lg font-bold">Preferences</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 py-3"><span>Email Notifications</span><input type="checkbox" defaultChecked /></div>
-              <div className="flex items-center justify-between py-3"><span>AI Recommendations</span><input type="checkbox" defaultChecked /></div>
             </div>
+
+            {hasUnsavedChanges ? <p className="mt-3 text-sm text-amber-200">You have unsaved changes.</p> : null}
+            {saveMsg ? <p className="mt-2 text-sm text-cyan-100">{saveMsg}</p> : null}
           </div>
         </div>
       </div>
@@ -1991,6 +2163,13 @@ function DashboardPageContent() {
     wilaya: string;
   } | null>(null);
 
+const [profileVersion, setProfileVersion] = useState(0);
+
+// Quand onUserUpdated est appelé, incrémente la version
+const handleUserUpdated = (updatedUser: any) => {
+  setUser(updatedUser);
+  setProfileVersion(v => v + 1); // ← FORCE LE RECHARGEMENT
+};
   const profileCompletion = useMemo(() => {
     if (!user) return 0;
     let done = 0;
@@ -2010,19 +2189,7 @@ function DashboardPageContent() {
     return universityCards.filter((u) => Number(u.score) <= bac).length;
   }, [user]);
 
-  const suggestedSpecialities = useMemo(
-    () =>
-      suggestSpecialitiesForStudent({
-        bacAverage: Number(user?.bac_average || 0),
-        mathGrade: Number(user?.math_grade || 0),
-        physicsGrade: Number(user?.physics_grade || 0),
-        subject3Grade: Number(user?.subject3_grade || 0),
-        bacStream: user?.bac_stream || "",
-        wilaya: user?.wilaya || "",
-      }),
-    [user],
-  );
-
+  
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -2069,18 +2236,22 @@ function DashboardPageContent() {
     section === "profile" ? (
       <ProfileSection
         user={user || { name: "Student", email: "", bac_stream: "Sciences", bac_average: 0, math_grade: 0, physics_grade: 0, subject3_grade: 0, wilaya: "Algiers" }}
-        onUserUpdated={setUser}
+         onUserUpdated={(updatedUser) => {
+    setUser(updatedUser);
+    setProfileVersion(v => v + 1);
+  }}
         profileCompletion={profileCompletion}
       />
     ) : (
       <DashboardHome
-        goSection={goSection}
-        userName={user?.name || "Student"}
-        profileCompletion={profileCompletion}
-        bacAverage={Number(user?.bac_average || 0)}
-        universitiesMatched={universitiesMatched}
-        suggestedSpecialities={suggestedSpecialities}
-      />
+       key={profileVersion}
+  goSection={goSection}
+  userName={user?.name || "Student"}
+  user={user}
+  profileCompletion={profileCompletion}
+  bacAverage={Number(user?.bac_average || 0)}
+  universitiesMatched={universitiesMatched}
+/>
     );
 
   if (!authChecked) {

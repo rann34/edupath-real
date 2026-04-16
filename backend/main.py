@@ -7,11 +7,18 @@ import time
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI()
+# ===== IMPORTS IA =====
+from ai.recommender import EduPathRecommender
+from ai.quiz_engine import AdaptiveQuizEngine
+
+# Initialisation des moteurs IA
+recommender = EduPathRecommender()
+quiz_engine = AdaptiveQuizEngine()
 DB_PATH = Path(__file__).resolve().parent / "edupath.sqlite"
 TOKEN_SECRET = "edupath-dev-secret-change-in-prod"
 TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7
@@ -125,10 +132,26 @@ def init_schema(conn: sqlite3.Connection) -> None:
             university_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             min_score REAL NOT NULL,
+            min_score_1 REAL,
+            min_score_2 REAL,
+            min_score_3 REAL,
+            threshold_source TEXT NOT NULL DEFAULT 'Moyennes-minimales-BAC-2025',
+            threshold_updated_at INTEGER,
             FOREIGN KEY(university_id) REFERENCES universities(id)
         )
         """
     )
+    speciality_columns = {row["name"] for row in conn.execute("PRAGMA table_info(specialities)").fetchall()}
+    if "min_score_1" not in speciality_columns:
+        conn.execute("ALTER TABLE specialities ADD COLUMN min_score_1 REAL")
+    if "min_score_2" not in speciality_columns:
+        conn.execute("ALTER TABLE specialities ADD COLUMN min_score_2 REAL")
+    if "min_score_3" not in speciality_columns:
+        conn.execute("ALTER TABLE specialities ADD COLUMN min_score_3 REAL")
+    if "threshold_source" not in speciality_columns:
+        conn.execute("ALTER TABLE specialities ADD COLUMN threshold_source TEXT NOT NULL DEFAULT 'Moyennes-minimales-BAC-2025'")
+    if "threshold_updated_at" not in speciality_columns:
+        conn.execute("ALTER TABLE specialities ADD COLUMN threshold_updated_at INTEGER")
 
     conn.execute(
         """
@@ -204,6 +227,31 @@ def init_schema(conn: sqlite3.Connection) -> None:
         """
     )
 
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS admission_thresholds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            academic_year INTEGER NOT NULL,
+            university_name TEXT NOT NULL,
+            speciality_name TEXT NOT NULL,
+            min_score REAL NOT NULL,
+            min_score_1 REAL,
+            min_score_2 REAL,
+            min_score_3 REAL,
+            source TEXT NOT NULL DEFAULT 'Moyennes-minimales-BAC-2025',
+            updated_at INTEGER NOT NULL,
+            UNIQUE(academic_year, university_name, speciality_name)
+        )
+        """
+    )
+    threshold_columns = {row["name"] for row in conn.execute("PRAGMA table_info(admission_thresholds)").fetchall()}
+    if "min_score_1" not in threshold_columns:
+        conn.execute("ALTER TABLE admission_thresholds ADD COLUMN min_score_1 REAL")
+    if "min_score_2" not in threshold_columns:
+        conn.execute("ALTER TABLE admission_thresholds ADD COLUMN min_score_2 REAL")
+    if "min_score_3" not in threshold_columns:
+        conn.execute("ALTER TABLE admission_thresholds ADD COLUMN min_score_3 REAL")
+
 
 def seed_users(conn: sqlite3.Connection) -> None:
     seed_email = "student@example.com"
@@ -219,195 +267,203 @@ def seed_users(conn: sqlite3.Connection) -> None:
 
 
 def seed_universities(conn: sqlite3.Connection) -> None:
+    seed_updated_at = int(time.time())
+    default_source = "Moyennes-minimales-BAC-2025"
     data = [
         {
             "name": "USTHB",
             "description": "University of Science and Technology Houari Boumediene",
-            "min_score": 14.50,
-            "type": "Grande Ecole",
+            "min_score": 10.00,
+            "type": "University",
             "city": "Algiers",
             "gradient": "from-blue-500 to-blue-700",
             "icon": "🏛️",
             "badge": "bg-blue-500/30",
             "specialities": [
-                {"name": "Computer Science", "min_score": 16.00, "modules": ["Algorithms", "Data Structures", "Operating Systems", "Databases"]},
-                {"name": "Telecommunications", "min_score": 15.20, "modules": ["Signals", "Network Protocols", "Wireless Systems", "Digital Communications"]},
-                {"name": "Chemical Engineering", "min_score": 14.50, "modules": ["Thermodynamics", "Process Control", "Industrial Chemistry", "Fluid Mechanics"]},
+                {"name": "Computer Science (Classique - Ingenieur)", "min_score": 15.14, "min_score_1": 15.14, "min_score_2": 15.90, "min_score_3": 16.73, "modules": ["Algorithms", "Data Structures", "Operating Systems", "Systems Engineering"]},
+                {"name": "Computer Science (LMD)", "min_score": 13.80, "min_score_1": 13.80, "min_score_2": 14.40, "min_score_3": 15.10, "modules": ["Programming", "Databases", "Software Engineering", "Web Development"]},
+                {"name": "Telecommunications", "min_score": 11.47, "min_score_1": 11.47, "min_score_2": 11.47, "min_score_3": 11.47, "modules": ["Signals", "Network Protocols", "Wireless Systems", "Digital Communications"]},
+                {"name": "Chemical Engineering", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.00, "min_score_3": 10.00, "modules": ["Thermodynamics", "Process Control", "Industrial Chemistry", "Fluid Mechanics"]},
+                {"name": "Mathematics", "min_score": 10.42, "min_score_1": 10.42, "min_score_2": 11.15, "min_score_3": 11.15, "modules": ["Analysis", "Algebra", "Probability", "Numerical Methods"]},
+                {"name": "Physics", "min_score": 10.93, "min_score_1": 10.93, "min_score_2": 10.93, "min_score_3": 10.93, "modules": ["Mechanics", "Electromagnetism", "Thermodynamics", "Optics"]},
+                {"name": "Electronics", "min_score": 10.32, "min_score_1": 10.32, "min_score_2": 10.32, "min_score_3": 10.32, "modules": ["Analog Electronics", "Digital Systems", "Embedded Systems", "Instrumentation"]},
+                {"name": "Civil Engineering", "min_score": 10.32, "min_score_1": 10.32, "min_score_2": 10.32, "min_score_3": 10.32, "modules": ["Structural Analysis", "Concrete Design", "Geotechnics", "Hydraulics"]},
+                {"name": "Biotechnology", "min_score": 11.57, "min_score_1": 11.57, "min_score_2": 12.63, "min_score_3": 12.63, "modules": ["Cell Biology", "Genetics", "Bioprocessing", "Molecular Biology"]},
             ],
         },
         {
             "name": "University of Algiers 1",
             "description": "Faculty of Medicine - Benyoucef Benkhedda",
-            "min_score": 16.00,
+            "min_score": 16.26,
             "type": "University",
             "city": "Algiers",
             "gradient": "from-green-500 to-green-700",
             "icon": "🏥",
             "badge": "bg-green-500/30",
             "specialities": [
-                {"name": "Medicine", "min_score": 17.00, "modules": ["Anatomy", "Physiology", "Biochemistry", "Clinical Skills"]},
-                {"name": "Pharmacy", "min_score": 16.50, "modules": ["Pharmacology", "Medicinal Chemistry", "Pharmaceutics", "Toxicology"]},
-                {"name": "Dentistry", "min_score": 16.30, "modules": ["Oral Anatomy", "Dental Materials", "Oral Pathology", "Prosthodontics"]},
+                {"name": "Medicine", "min_score": 16.65, "min_score_1": 16.65, "min_score_2": 17.15, "min_score_3": 18.19, "modules": ["Anatomy", "Physiology", "Biochemistry", "Clinical Skills"]},
+                {"name": "Pharmacy", "min_score": 16.26, "min_score_1": 16.26, "min_score_2": 16.76, "min_score_3": 16.76, "modules": ["Pharmacology", "Medicinal Chemistry", "Pharmaceutics", "Toxicology"]},
+                {"name": "Dentistry", "min_score": 16.99, "min_score_1": 16.99, "min_score_2": 17.50, "min_score_3": 17.50, "modules": ["Oral Anatomy", "Dental Materials", "Oral Pathology", "Prosthodontics"]},
             ],
         },
         {
             "name": "ENP",
             "description": "National Polytechnic School - Engineering",
-            "min_score": 17.00,
+            "min_score": 16.00,
             "type": "Grande Ecole",
             "city": "Algiers",
             "gradient": "from-purple-500 to-purple-700",
             "icon": "⚡",
             "badge": "bg-purple-500/30",
             "specialities": [
-                {"name": "Electrical Engineering", "min_score": 17.00, "modules": ["Circuit Theory", "Power Systems", "Control Systems", "Electrical Machines"]},
-                {"name": "Mechanical Engineering", "min_score": 16.70, "modules": ["Statics", "Dynamics", "Thermal Systems", "Manufacturing"]},
-                {"name": "Industrial Engineering", "min_score": 16.40, "modules": ["Operations Research", "Quality Control", "Supply Chain", "Project Planning"]},
+                {"name": "Electrical Engineering", "min_score": 16.00, "min_score_1": 16.00, "min_score_2": 16.00, "min_score_3": 16.00, "modules": ["Circuit Theory", "Power Systems", "Control Systems", "Electrical Machines"]},
+                {"name": "Mechanical Engineering", "min_score": 16.00, "min_score_1": 16.00, "min_score_2": 16.00, "min_score_3": 16.00, "modules": ["Statics", "Dynamics", "Thermal Systems", "Manufacturing"]},
+                {"name": "Industrial Engineering", "min_score": 16.00, "min_score_1": 16.00, "min_score_2": 16.00, "min_score_3": 16.00, "modules": ["Operations Research", "Quality Control", "Supply Chain", "Project Planning"]},
             ],
         },
         {
             "name": "ESI",
             "description": "Higher School of Computer Science",
-            "min_score": 16.50,
+            "min_score": 18.19,
             "type": "Grande Ecole",
             "city": "Algiers",
             "gradient": "from-orange-500 to-orange-700",
             "icon": "💻",
             "badge": "bg-orange-500/30",
             "specialities": [
-                {"name": "Software Engineering", "min_score": 16.80, "modules": ["Software Design", "Web Development", "Testing", "DevOps"]},
-                {"name": "AI & Data Science", "min_score": 16.90, "modules": ["Machine Learning", "Statistics", "Data Mining", "Deep Learning"]},
-                {"name": "Cybersecurity", "min_score": 16.50, "modules": ["Network Security", "Cryptography", "Ethical Hacking", "Security Auditing"]},
+                {"name": "Software Engineering", "min_score": 18.19, "min_score_1": 18.19, "min_score_2": 18.55, "min_score_3": 18.93, "modules": ["Software Design", "Web Development", "Testing", "DevOps"]},
+                {"name": "AI & Data Science", "min_score": 18.19, "min_score_1": 18.19, "min_score_2": 18.55, "min_score_3": 18.93, "modules": ["Machine Learning", "Statistics", "Data Mining", "Deep Learning"]},
+                {"name": "Cybersecurity", "min_score": 18.19, "min_score_1": 18.19, "min_score_2": 18.55, "min_score_3": 18.93, "modules": ["Network Security", "Cryptography", "Ethical Hacking", "Security Auditing"]},
             ],
         },
         {
             "name": "USTO-MB",
             "description": "University of Science and Technology - Mohamed Boudiaf",
-            "min_score": 13.50,
+            "min_score": 10.32,
             "type": "University",
             "city": "Oran",
             "gradient": "from-red-500 to-red-700",
             "icon": "🔬",
             "badge": "bg-red-500/30",
             "specialities": [
-                {"name": "Civil Engineering", "min_score": 14.20, "modules": ["Structural Analysis", "Concrete Design", "Geotechnics", "Hydraulics"]},
-                {"name": "Electronics", "min_score": 14.00, "modules": ["Analog Electronics", "Digital Systems", "Embedded Systems", "Instrumentation"]},
-                {"name": "Biotechnology", "min_score": 13.50, "modules": ["Cell Biology", "Genetics", "Bioprocessing", "Molecular Biology"]},
+                {"name": "Civil Engineering", "min_score": 10.32, "min_score_1": 10.32, "min_score_2": 10.32, "min_score_3": 10.32, "modules": ["Structural Analysis", "Concrete Design", "Geotechnics", "Hydraulics"]},
+                {"name": "Electronics", "min_score": 10.32, "min_score_1": 10.32, "min_score_2": 10.32, "min_score_3": 10.32, "modules": ["Analog Electronics", "Digital Systems", "Embedded Systems", "Instrumentation"]},
+                {"name": "Biotechnology", "min_score": 11.57, "min_score_1": 11.57, "min_score_2": 12.63, "min_score_3": 12.63, "modules": ["Cell Biology", "Genetics", "Bioprocessing", "Molecular Biology"]},
             ],
         },
         {
             "name": "University of Algiers 2",
             "description": "Faculty of Humanities and Social Sciences",
-            "min_score": 12.40,
+            "min_score": 10.00,
             "type": "University",
             "city": "Algiers",
             "gradient": "from-indigo-500 to-blue-700",
             "icon": "📚",
             "badge": "bg-indigo-500/30",
             "specialities": [
-                {"name": "Law", "min_score": 13.50, "modules": ["Constitutional Law", "Civil Law", "Administrative Law", "Legal Methodology"]},
-                {"name": "Psychology", "min_score": 12.80, "modules": ["General Psychology", "Cognitive Psychology", "Psychometrics", "Research Methods"]},
-                {"name": "Sociology", "min_score": 12.60, "modules": ["Social Theory", "Sociological Methods", "Demography", "Field Research"]},
-                {"name": "English Language and Literature", "min_score": 12.50, "modules": ["Linguistics", "Literary Analysis", "Academic Writing", "Translation"]},
-                {"name": "Media and Communication", "min_score": 12.90, "modules": ["Media Studies", "Public Speaking", "Digital Communication", "Content Strategy"]},
-                {"name": "Philosophy", "min_score": 12.40, "modules": ["Logic", "Ethics", "History of Philosophy", "Critical Thinking"]},
+                {"name": "Law", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.56, "min_score_3": 11.31, "modules": ["Constitutional Law", "Civil Law", "Administrative Law", "Legal Methodology"]},
+                {"name": "Psychology", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.00, "min_score_3": 10.00, "modules": ["General Psychology", "Cognitive Psychology", "Psychometrics", "Research Methods"]},
+                {"name": "Sociology", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.00, "min_score_3": 10.00, "modules": ["Social Theory", "Sociological Methods", "Demography", "Field Research"]},
+                {"name": "English Language and Literature", "min_score": 12.73, "min_score_1": 12.73, "min_score_2": 13.63, "min_score_3": 14.52, "modules": ["Linguistics", "Literary Analysis", "Academic Writing", "Translation"]},
+                {"name": "Media and Communication", "min_score": 10.87, "min_score_1": 10.87, "min_score_2": 10.87, "min_score_3": 10.87, "modules": ["Media Studies", "Public Speaking", "Digital Communication", "Content Strategy"]},
+                {"name": "Philosophy", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.00, "min_score_3": 10.00, "modules": ["Logic", "Ethics", "History of Philosophy", "Critical Thinking"]},
             ],
         },
         {
             "name": "University of Algiers 1 - Faculty of Sciences",
             "description": "Benyoucef Benkhedda - Faculty of Sciences",
-            "min_score": 13.80,
+            "min_score": 10.42,
             "type": "University",
             "city": "Algiers",
             "gradient": "from-sky-500 to-blue-700",
             "icon": "🧪",
             "badge": "bg-sky-500/30",
             "specialities": [
-                {"name": "Computer Science", "min_score": 15.50, "modules": ["Algorithms", "Programming", "Databases", "Operating Systems"]},
-                {"name": "Mathematics", "min_score": 14.60, "modules": ["Analysis", "Algebra", "Probability", "Numerical Methods"]},
-                {"name": "Physics", "min_score": 14.20, "modules": ["Mechanics", "Electromagnetism", "Thermodynamics", "Optics"]},
-                {"name": "Chemistry", "min_score": 13.90, "modules": ["Organic Chemistry", "Analytical Chemistry", "Physical Chemistry", "Lab Methods"]},
-                {"name": "Biology", "min_score": 13.80, "modules": ["Cell Biology", "Genetics", "Biochemistry", "Microbiology"]},
+                {"name": "Computer Science", "min_score": 14.79, "min_score_1": 14.79, "min_score_2": 15.53, "min_score_3": 15.53, "modules": ["Algorithms", "Programming", "Databases", "Operating Systems"]},
+                {"name": "Mathematics", "min_score": 10.42, "min_score_1": 10.42, "min_score_2": 11.15, "min_score_3": 11.15, "modules": ["Analysis", "Algebra", "Probability", "Numerical Methods"]},
+                {"name": "Physics", "min_score": 10.93, "min_score_1": 10.93, "min_score_2": 10.93, "min_score_3": 10.93, "modules": ["Mechanics", "Electromagnetism", "Thermodynamics", "Optics"]},
+                {"name": "Chemistry", "min_score": 10.93, "min_score_1": 10.93, "min_score_2": 10.93, "min_score_3": 10.93, "modules": ["Organic Chemistry", "Analytical Chemistry", "Physical Chemistry", "Lab Methods"]},
+                {"name": "Biology", "min_score": 12.56, "min_score_1": 12.56, "min_score_2": 13.77, "min_score_3": 13.77, "modules": ["Cell Biology", "Genetics", "Biochemistry", "Microbiology"]},
             ],
         },
         {
             "name": "University of Oran 1",
             "description": "Ahmed Ben Bella - Major multidisciplinary university",
-            "min_score": 13.20,
+            "min_score": 10.00,
             "type": "University",
             "city": "Oran",
             "gradient": "from-emerald-500 to-teal-700",
             "icon": "🏙️",
             "badge": "bg-emerald-500/30",
             "specialities": [
-                {"name": "Computer Science", "min_score": 14.80, "modules": ["Programming", "Software Engineering", "Networks", "Databases"]},
-                {"name": "Economics", "min_score": 13.50, "modules": ["Microeconomics", "Macroeconomics", "Econometrics", "Public Economics"]},
-                {"name": "Law", "min_score": 13.30, "modules": ["Civil Law", "Criminal Law", "Administrative Law", "Legal Writing"]},
-                {"name": "English Language and Literature", "min_score": 13.20, "modules": ["Linguistics", "Literary Studies", "Translation", "Academic Communication"]},
+                {"name": "Computer Science", "min_score": 11.07, "min_score_1": 11.07, "min_score_2": 11.62, "min_score_3": 13.45, "modules": ["Programming", "Software Engineering", "Networks", "Databases"]},
+                {"name": "Economics", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.00, "min_score_3": 10.00, "modules": ["Microeconomics", "Macroeconomics", "Econometrics", "Public Economics"]},
+                {"name": "Law", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.00, "min_score_3": 10.00, "modules": ["Civil Law", "Criminal Law", "Administrative Law", "Legal Writing"]},
+                {"name": "English Language and Literature", "min_score": 10.87, "min_score_1": 10.87, "min_score_2": 11.64, "min_score_3": 11.64, "modules": ["Linguistics", "Literary Studies", "Translation", "Academic Communication"]},
             ],
         },
         {
             "name": "University of Constantine 1",
             "description": "Freres Mentouri - Sciences, engineering, and humanities",
-            "min_score": 13.70,
+            "min_score": 10.00,
             "type": "University",
             "city": "Constantine",
             "gradient": "from-indigo-500 to-cyan-700",
             "icon": "🏛️",
             "badge": "bg-indigo-500/30",
             "specialities": [
-                {"name": "Computer Science", "min_score": 15.20, "modules": ["Algorithms", "Software Engineering", "AI Basics", "Databases"]},
-                {"name": "Civil Engineering", "min_score": 14.40, "modules": ["Structural Mechanics", "Geotechnics", "Hydraulics", "Construction Materials"]},
-                {"name": "Psychology", "min_score": 13.40, "modules": ["General Psychology", "Developmental Psychology", "Psychometrics", "Counseling Basics"]},
-                {"name": "Law", "min_score": 13.60, "modules": ["Constitutional Law", "Civil Law", "Criminal Law", "Legal Methodology"]},
+                {"name": "Computer Science", "min_score": 13.81, "min_score_1": 13.81, "min_score_2": 14.49, "min_score_3": 15.52, "modules": ["Algorithms", "Software Engineering", "AI Basics", "Databases"]},
+                {"name": "Civil Engineering", "min_score": 10.64, "min_score_1": 10.64, "min_score_2": 10.64, "min_score_3": 10.64, "modules": ["Structural Mechanics", "Geotechnics", "Hydraulics", "Construction Materials"]},
+                {"name": "Psychology", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.00, "min_score_3": 10.71, "modules": ["General Psychology", "Developmental Psychology", "Psychometrics", "Counseling Basics"]},
+                {"name": "Law", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.66, "min_score_3": 11.70, "modules": ["Constitutional Law", "Civil Law", "Criminal Law", "Legal Methodology"]},
             ],
         },
         {
             "name": "University of Blida 1",
             "description": "Saad Dahlab - Science and applied fields",
-            "min_score": 13.00,
+            "min_score": 10.00,
             "type": "University",
             "city": "Blida",
             "gradient": "from-rose-500 to-fuchsia-700",
             "icon": "🔭",
             "badge": "bg-rose-500/30",
             "specialities": [
-                {"name": "Biotechnology", "min_score": 13.80, "modules": ["Molecular Biology", "Genetics", "Bioprocess Engineering", "Bioinformatics"]},
-                {"name": "Computer Science", "min_score": 14.60, "modules": ["Programming", "Algorithms", "Systems", "Databases"]},
-                {"name": "Economics", "min_score": 13.20, "modules": ["Microeconomics", "Macroeconomics", "Statistics", "Public Finance"]},
-                {"name": "Pharmacy", "min_score": 16.20, "modules": ["Pharmacology", "Medicinal Chemistry", "Toxicology", "Pharmaceutics"]},
+                {"name": "Biotechnology", "min_score": 10.86, "min_score_1": 10.86, "min_score_2": 11.64, "min_score_3": 11.64, "modules": ["Molecular Biology", "Genetics", "Bioprocess Engineering", "Bioinformatics"]},
+                {"name": "Computer Science", "min_score": 14.01, "min_score_1": 14.01, "min_score_2": 14.71, "min_score_3": 16.15, "modules": ["Programming", "Algorithms", "Systems", "Databases"]},
+                {"name": "Economics", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.00, "min_score_3": 10.00, "modules": ["Microeconomics", "Macroeconomics", "Statistics", "Public Finance"]},
+                {"name": "Pharmacy", "min_score": 16.26, "min_score_1": 16.26, "min_score_2": 16.76, "min_score_3": 16.76, "modules": ["Pharmacology", "Medicinal Chemistry", "Toxicology", "Pharmaceutics"]},
             ],
         },
         {
             "name": "University of Bejaia",
             "description": "Abderrahmane Mira - Public university with diverse tracks",
-            "min_score": 12.80,
+            "min_score": 10.19,
             "type": "University",
             "city": "Bejaia",
             "gradient": "from-teal-500 to-blue-700",
             "icon": "🌊",
             "badge": "bg-teal-500/30",
             "specialities": [
-                {"name": "Computer Science", "min_score": 14.30, "modules": ["Programming", "Databases", "Networks", "Web Technologies"]},
-                {"name": "Finance", "min_score": 13.90, "modules": ["Financial Accounting", "Corporate Finance", "Banking", "Risk Analysis"]},
-                {"name": "English Language and Literature", "min_score": 12.90, "modules": ["Linguistics", "Translation", "Literary Criticism", "Academic Writing"]},
-                {"name": "Management", "min_score": 13.60, "modules": ["Organizational Behavior", "Project Management", "Strategy", "Operations"]},
-                {"name": "Law", "min_score": 13.10, "modules": ["Legal Reasoning", "Civil Law", "Commercial Law", "Administrative Law"]},
+                {"name": "Computer Science", "min_score": 14.99, "min_score_1": 14.99, "min_score_2": 15.73, "min_score_3": 16.59, "modules": ["Programming", "Databases", "Networks", "Web Technologies"]},
+                {"name": "Finance", "min_score": 10.19, "min_score_1": 10.19, "min_score_2": 11.30, "min_score_3": 12.47, "modules": ["Financial Accounting", "Corporate Finance", "Banking", "Risk Analysis"]},
+                {"name": "English Language and Literature", "min_score": 13.59, "min_score_1": 13.59, "min_score_2": 14.93, "min_score_3": 14.93, "modules": ["Linguistics", "Translation", "Literary Criticism", "Academic Writing"]},
+                {"name": "Management", "min_score": 10.19, "min_score_1": 10.19, "min_score_2": 11.30, "min_score_3": 12.47, "modules": ["Organizational Behavior", "Project Management", "Strategy", "Operations"]},
+                {"name": "Law", "min_score": 10.00, "min_score_1": 10.00, "min_score_2": 10.00, "min_score_3": 10.00, "modules": ["Legal Reasoning", "Civil Law", "Commercial Law", "Administrative Law"]},
             ],
         },
         {
             "name": "HEC Algiers",
             "description": "Higher School of Commerce",
-            "min_score": 15.00,
+            "min_score": 14.50,
             "type": "Grande Ecole",
             "city": "Algiers",
             "gradient": "from-cyan-500 to-cyan-700",
             "icon": "💼",
             "badge": "bg-cyan-500/30",
             "specialities": [
-                {"name": "Finance", "min_score": 15.80, "modules": ["Corporate Finance", "Accounting", "Financial Analysis", "Risk Management"]},
-                {"name": "Marketing", "min_score": 15.20, "modules": ["Consumer Behavior", "Digital Marketing", "Brand Strategy", "Market Research"]},
-                {"name": "Management", "min_score": 15.00, "modules": ["Human Resources", "Business Strategy", "Operations", "Leadership"]},
+                {"name": "Finance", "min_score": 14.50, "min_score_1": 14.50, "min_score_2": 14.50, "min_score_3": 14.50, "modules": ["Corporate Finance", "Accounting", "Financial Analysis", "Risk Management"]},
+                {"name": "Marketing", "min_score": 14.50, "min_score_1": 14.50, "min_score_2": 14.50, "min_score_3": 14.50, "modules": ["Consumer Behavior", "Digital Marketing", "Brand Strategy", "Market Research"]},
+                {"name": "Management", "min_score": 14.50, "min_score_1": 14.50, "min_score_2": 14.50, "min_score_3": 14.50, "modules": ["Human Resources", "Business Strategy", "Operations", "Leadership"]},
             ],
         },
     ]
@@ -465,17 +521,40 @@ def seed_universities(conn: sqlite3.Connection) -> None:
             if existing_spec is None:
                 spec_cur = conn.execute(
                     """
-                    INSERT INTO specialities(university_id, name, min_score)
-                    VALUES (?, ?, ?)
+                    INSERT INTO specialities(
+                      university_id, name, min_score, min_score_1, min_score_2, min_score_3, threshold_source, threshold_updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (univ_id, spec["name"], spec["min_score"]),
+                    (
+                        univ_id,
+                        spec["name"],
+                        spec["min_score"],
+                        spec.get("min_score_1", spec["min_score"]),
+                        spec.get("min_score_2", spec["min_score"]),
+                        spec.get("min_score_3", spec["min_score"]),
+                        spec.get("threshold_source", default_source),
+                        seed_updated_at,
+                    ),
                 )
                 spec_id = spec_cur.lastrowid
             else:
                 spec_id = existing_spec["id"]
                 conn.execute(
-                    "UPDATE specialities SET min_score = ? WHERE id = ?",
-                    (spec["min_score"], spec_id),
+                    """
+                    UPDATE specialities
+                    SET min_score = ?, min_score_1 = ?, min_score_2 = ?, min_score_3 = ?, threshold_source = ?, threshold_updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        spec["min_score"],
+                        spec.get("min_score_1", spec["min_score"]),
+                        spec.get("min_score_2", spec["min_score"]),
+                        spec.get("min_score_3", spec["min_score"]),
+                        spec.get("threshold_source", default_source),
+                        seed_updated_at,
+                        spec_id,
+                    ),
                 )
 
             for module in spec["modules"]:
@@ -700,9 +779,33 @@ def init_db() -> None:
         conn.commit()
 
 
+def recompute_university_min_scores(conn: sqlite3.Connection) -> int:
+    aggregates = conn.execute(
+        """
+        SELECT university_id, MIN(min_score) AS min_value
+        FROM specialities
+        GROUP BY university_id
+        """
+    ).fetchall()
+
+    updated = 0
+    for row in aggregates:
+        conn.execute(
+            "UPDATE universities SET min_score = ? WHERE id = ?",
+            (row["min_value"], row["university_id"]),
+        )
+        updated += 1
+    return updated
+
+
 def university_to_dict(conn: sqlite3.Connection, row: sqlite3.Row):
     specs = conn.execute(
-        "SELECT id, name, min_score FROM specialities WHERE university_id = ? ORDER BY id",
+        """
+        SELECT id, name, min_score, min_score_1, min_score_2, min_score_3, threshold_source, threshold_updated_at
+        FROM specialities
+        WHERE university_id = ?
+        ORDER BY id
+        """,
         (row["id"],),
     ).fetchall()
 
@@ -716,6 +819,11 @@ def university_to_dict(conn: sqlite3.Connection, row: sqlite3.Row):
             {
                 "name": spec["name"],
                 "minScore": f"{spec['min_score']:.2f}",
+                "minScore1": f"{(spec['min_score_1'] if spec['min_score_1'] is not None else spec['min_score']):.2f}",
+                "minScore2": f"{(spec['min_score_2'] if spec['min_score_2'] is not None else spec['min_score']):.2f}",
+                "minScore3": f"{(spec['min_score_3'] if spec['min_score_3'] is not None else spec['min_score']):.2f}",
+                "thresholdSource": spec["threshold_source"],
+                "thresholdUpdatedAt": spec["threshold_updated_at"],
                 "modules": [m["name"] for m in modules],
             }
         )
@@ -787,7 +895,12 @@ init_db()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -826,6 +939,26 @@ class ProfileUpdateData(BaseModel):
     physics_grade: float
     subject3_grade: float
     wilaya: str
+
+
+class AdmissionThresholdItem(BaseModel):
+    university_name: str
+    speciality_name: str
+    min_score: float
+    min_score_1: float | None = None
+    min_score_2: float | None = None
+    min_score_3: float | None = None
+
+
+class AdmissionThresholdImportData(BaseModel):
+    academic_year: int
+    source: str = "Moyennes-minimales-BAC-2025"
+    items: list[AdmissionThresholdItem]
+
+
+class AdmissionThresholdApplyData(BaseModel):
+    academic_year: int
+    offset: float = 0.0
 
 
 @app.post("/register")
@@ -1033,6 +1166,154 @@ def get_university(university_id: int):
         return university_to_dict(conn, row)
 
 
+@app.get("/admin/admission-thresholds/{academic_year}")
+def list_admission_thresholds(academic_year: int):
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT university_name, speciality_name, min_score, min_score_1, min_score_2, min_score_3, source, updated_at
+            FROM admission_thresholds
+            WHERE academic_year = ?
+            ORDER BY university_name, speciality_name
+            """,
+            (academic_year,),
+        ).fetchall()
+        return [
+            {
+                "university_name": row["university_name"],
+                "speciality_name": row["speciality_name"],
+                "min_score": row["min_score"],
+                "min_score_1": row["min_score_1"],
+                "min_score_2": row["min_score_2"],
+                "min_score_3": row["min_score_3"],
+                "source": row["source"],
+                "updated_at": row["updated_at"],
+            }
+            for row in rows
+        ]
+
+
+@app.post("/admin/admission-thresholds/import")
+def import_admission_thresholds(data: AdmissionThresholdImportData):
+    if data.academic_year < 2000:
+        raise HTTPException(status_code=400, detail="academic_year is invalid")
+    if not data.items:
+        raise HTTPException(status_code=400, detail="items must not be empty")
+
+    now = int(time.time())
+    inserted = 0
+
+    with get_conn() as conn:
+        for item in data.items:
+            if not item.university_name.strip() or not item.speciality_name.strip():
+                raise HTTPException(status_code=400, detail="university_name and speciality_name are required")
+            if item.min_score < 0 or item.min_score > 20:
+                raise HTTPException(status_code=400, detail="min_score must be between 0 and 20")
+            for tier in [item.min_score_1, item.min_score_2, item.min_score_3]:
+                if tier is not None and (tier < 0 or tier > 20):
+                    raise HTTPException(status_code=400, detail="min_score_1/min_score_2/min_score_3 must be between 0 and 20")
+
+            conn.execute(
+                """
+                INSERT INTO admission_thresholds(academic_year, university_name, speciality_name, min_score, min_score_1, min_score_2, min_score_3, source, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(academic_year, university_name, speciality_name)
+                DO UPDATE SET
+                  min_score = excluded.min_score,
+                  min_score_1 = excluded.min_score_1,
+                  min_score_2 = excluded.min_score_2,
+                  min_score_3 = excluded.min_score_3,
+                  source = excluded.source,
+                  updated_at = excluded.updated_at
+                """,
+                (
+                    data.academic_year,
+                    item.university_name.strip(),
+                    item.speciality_name.strip(),
+                    item.min_score,
+                    item.min_score_1,
+                    item.min_score_2,
+                    item.min_score_3,
+                    data.source.strip() or "Moyennes-minimales-BAC-2025",
+                    now,
+                ),
+            )
+            inserted += 1
+        conn.commit()
+
+    return {"message": "Admission thresholds imported", "academic_year": data.academic_year, "items_upserted": inserted}
+
+
+@app.post("/admin/admission-thresholds/apply")
+def apply_admission_thresholds(data: AdmissionThresholdApplyData):
+    with get_conn() as conn:
+        thresholds = conn.execute(
+            """
+            SELECT university_name, speciality_name, min_score, min_score_1, min_score_2, min_score_3, source, updated_at
+            FROM admission_thresholds
+            WHERE academic_year = ?
+            """,
+            (data.academic_year,),
+        ).fetchall()
+
+        if not thresholds:
+            raise HTTPException(status_code=404, detail="No thresholds found for this academic year")
+
+        updated_specialities = 0
+        missing_mappings = []
+
+        for row in thresholds:
+            adjusted_score = max(0.0, min(20.0, float(row["min_score"]) + float(data.offset)))
+            adjusted_1 = row["min_score_1"]
+            adjusted_2 = row["min_score_2"]
+            adjusted_3 = row["min_score_3"]
+            if adjusted_1 is not None:
+                adjusted_1 = max(0.0, min(20.0, float(adjusted_1) + float(data.offset)))
+            if adjusted_2 is not None:
+                adjusted_2 = max(0.0, min(20.0, float(adjusted_2) + float(data.offset)))
+            if adjusted_3 is not None:
+                adjusted_3 = max(0.0, min(20.0, float(adjusted_3) + float(data.offset)))
+            cur = conn.execute(
+                """
+                UPDATE specialities
+                SET min_score = ?, min_score_1 = ?, min_score_2 = ?, min_score_3 = ?, threshold_source = ?, threshold_updated_at = ?
+                WHERE name = ?
+                  AND university_id = (SELECT id FROM universities WHERE name = ?)
+                """,
+                (
+                    adjusted_score,
+                    adjusted_1,
+                    adjusted_2,
+                    adjusted_3,
+                    row["source"] or "Moyennes-minimales-BAC-2025",
+                    row["updated_at"],
+                    row["speciality_name"],
+                    row["university_name"],
+                ),
+            )
+            if cur.rowcount > 0:
+                updated_specialities += cur.rowcount
+            else:
+                missing_mappings.append(
+                    {
+                        "university_name": row["university_name"],
+                        "speciality_name": row["speciality_name"],
+                    }
+                )
+
+        updated_universities = recompute_university_min_scores(conn)
+        conn.commit()
+
+    return {
+        "message": "Admission thresholds applied to current filieres",
+        "academic_year": data.academic_year,
+        "offset": data.offset,
+        "updated_specialities": updated_specialities,
+        "updated_universities": updated_universities,
+        "missing_mappings": missing_mappings,
+    }
+
+
 @app.get("/careers")
 def list_careers():
     with get_conn() as conn:
@@ -1047,3 +1328,62 @@ def get_career(career_id: int):
         if row is None:
             raise HTTPException(status_code=404, detail="Career not found")
         return career_to_dict(conn, row)
+# ============================================
+# ROUTES IA - RECOMMANDATION
+# ============================================
+
+from fastapi import Request
+
+@app.post("/api/ai/recommend")
+async def ai_recommend(request: Request):
+    """
+    Reçoit le profil académique de l'étudiant et retourne les formations recommandées.
+    """
+    data = await request.json()
+    profile = {
+        "bac_stream": data.get("bac_stream", ""),
+        "bac_average": data.get("bac_average", 0),
+        "math_grade": data.get("math_grade", 0),
+        "physics_grade": data.get("physics_grade", 0),
+        "subject3_grade": data.get("subject3_grade", 0),
+        "wilaya": data.get("wilaya", ""),
+    }
+
+    if float(profile["bac_average"] or 0) <= 0:
+        return {"error": "Veuillez compléter les notes du profil"}
+
+    results = recommender.recommend(profile, top_n=5)
+    return {"recommendations": results}
+
+
+# ============================================
+# ROUTES IA - QUIZ
+# ============================================
+
+@app.get("/api/ai/quiz/question/{index}")
+async def get_quiz_question(index: int):
+    """
+    Retourne la question du quiz à l'index demandé.
+    """
+    question = quiz_engine.get_question(index)
+    if question:
+        return question
+    return {"error": "Index invalide"}
+
+
+@app.post("/api/ai/quiz/predict")
+async def predict_quiz_result(request: Request):
+    """
+    Reçoit les réponses du quiz et retourne la filière recommandée.
+    """
+    data = await request.json()
+    answers = data.get("answers", [])
+    
+    if len(answers) < 12:
+        return {"error": "Veuillez répondre à toutes les questions"}
+    
+    try:
+        result = quiz_engine.predict_career(answers)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    return {"result": result}

@@ -1,20 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --bg-main: #0a1628;
-  --bg-panel: #1e3a5f;
-  --bg-panel-soft: #0d2847;
-  --bg-card: #21406d;
-  --bg-elevated: #2a4d7f;
-  --bg-accent-a: #0f2f57;
-  --bg-accent-b: #123c66;
+  --bg-main: #081726;
+  --bg-panel: #163252;
+  --bg-panel-soft: #102843;
+  --bg-card: #1f436b;
+  --bg-elevated: #29557f;
+  --bg-accent-a: #12385d;
+  --bg-accent-b: #1e4d74;
   --stroke: rgba(255, 255, 255, 0.1);
-  --stroke-strong: rgba(59, 130, 246, 0.4);
-  --text-main: #eff5ff;
-  --text-muted: #b7cef0;
-  --brand: #3f88ff;
-  --brand-soft: #66b4ff;
-  --brand-cyan: #58c7ff;
+  --stroke-strong: rgba(92, 188, 255, 0.4);
+  --text-main: #f3f7fb;
+  --text-muted: #bfd2e6;
+  --brand: #4e99ff;
+  --brand-soft: #7bbdff;
+  --brand-cyan: #7ad8eb;
   --ok: #35d17a;
 }
 
@@ -31,11 +31,10 @@ html {
 
 body {
   background:
-    radial-gradient(820px 470px at 80% 22%, rgba(255, 213, 125, 0.24), transparent 56%),
-    radial-gradient(700px 420px at 20% 74%, rgba(255, 225, 155, 0.2), transparent 56%),
-    radial-gradient(1200px 700px at 8% -12%, rgba(98, 182, 255, 0.34), transparent 56%),
-    radial-gradient(1050px 650px at 102% 0%, rgba(70, 132, 255, 0.34), transparent 54%),
-    linear-gradient(145deg, #040a15 0%, #0a1d38 44%, #0e2e57 100%);
+    radial-gradient(960px 540px at 88% 8%, rgba(255, 207, 136, 0.18), transparent 55%),
+    radial-gradient(880px 620px at 14% 82%, rgba(111, 209, 235, 0.16), transparent 57%),
+    radial-gradient(760px 460px at 20% -8%, rgba(102, 156, 255, 0.22), transparent 58%),
+    linear-gradient(145deg, #06111d 0%, #0b2137 45%, #13385a 100%);
   color: var(--text-main);
   font-family: var(--font-plus-jakarta), sans-serif;
   box-sizing: border-box;
@@ -49,13 +48,14 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: -1;
-  opacity: 0.36;
+  opacity: 0.42;
   background-image:
-    radial-gradient(rgba(255, 227, 168, 0.78) 0.9px, transparent 1.6px),
-    radial-gradient(rgba(188, 220, 255, 0.72) 0.9px, transparent 1.6px),
-    radial-gradient(rgba(255, 240, 196, 0.4) 1.2px, transparent 1.8px);
-  background-size: 24px 24px, 34px 34px, 56px 56px;
-  background-position: 0 0, 11px 15px, 21px 7px;
+    linear-gradient(rgba(152, 187, 220, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(152, 187, 220, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 20% 20%, rgba(255, 226, 177, 0.14) 0 2px, transparent 3px),
+    radial-gradient(circle at 76% 30%, rgba(134, 210, 234, 0.12) 0 2px, transparent 3px);
+  background-size: 38px 38px, 38px 38px, 160px 160px, 180px 180px;
+  background-position: 0 0, 0 0, 0 0, 40px 70px;
 }
 
 input::placeholder {
@@ -96,33 +96,61 @@ select option {
 
 .gradient-bg {
   background:
-    radial-gradient(820px 470px at 80% 22%, rgba(255, 213, 125, 0.24), transparent 56%),
-    radial-gradient(700px 420px at 20% 74%, rgba(255, 225, 155, 0.2), transparent 56%),
-    radial-gradient(1200px 700px at 8% -12%, rgba(98, 182, 255, 0.34), transparent 56%),
-    radial-gradient(1050px 650px at 102% 0%, rgba(70, 132, 255, 0.34), transparent 54%),
-    linear-gradient(145deg, #040a15 0%, #0a1d38 44%, #0e2e57 100%);
+    radial-gradient(960px 540px at 88% 8%, rgba(255, 207, 136, 0.18), transparent 55%),
+    radial-gradient(880px 620px at 14% 82%, rgba(111, 209, 235, 0.16), transparent 57%),
+    radial-gradient(760px 460px at 20% -8%, rgba(102, 156, 255, 0.22), transparent 58%),
+    linear-gradient(145deg, #06111d 0%, #0b2137 45%, #13385a 100%);
 }
 
 .galaxy-landing {
   background:
-    radial-gradient(720px 420px at 72% 26%, rgba(244, 208, 127, 0.2), transparent 58%),
-    radial-gradient(620px 380px at 22% 72%, rgba(255, 220, 150, 0.16), transparent 58%),
-    radial-gradient(920px 560px at 14% -10%, rgba(95, 173, 255, 0.3), transparent 58%),
-    radial-gradient(980px 620px at 102% 4%, rgba(58, 113, 235, 0.3), transparent 56%),
-    linear-gradient(150deg, #040912 0%, #091a34 46%, #0d2a4d 100%);
+    radial-gradient(840px 440px at 82% 16%, rgba(255, 215, 154, 0.16), transparent 56%),
+    radial-gradient(720px 420px at 12% 78%, rgba(106, 205, 226, 0.14), transparent 56%),
+    radial-gradient(820px 500px at 12% 0%, rgba(95, 155, 255, 0.22), transparent 58%),
+    linear-gradient(155deg, #07111d 0%, #10253b 44%, #173d5f 100%);
 }
 
 .galaxy-stars {
   background-image:
-    radial-gradient(1.2px 1.2px at 12% 20%, rgba(245, 229, 170, 0.95), transparent 2px),
-    radial-gradient(1.4px 1.4px at 77% 22%, rgba(255, 240, 190, 0.9), transparent 2px),
-    radial-gradient(1px 1px at 30% 62%, rgba(197, 223, 255, 0.85), transparent 2px),
-    radial-gradient(1.1px 1.1px at 88% 70%, rgba(255, 224, 160, 0.82), transparent 2px),
-    radial-gradient(0.9px 0.9px at 55% 48%, rgba(226, 241, 255, 0.82), transparent 2px),
-    radial-gradient(700px 380px at 70% 26%, rgba(255, 215, 140, 0.2), transparent 58%),
-    radial-gradient(620px 360px at 22% 74%, rgba(255, 211, 120, 0.16), transparent 58%);
-  opacity: 0.72;
+    linear-gradient(115deg, transparent 0%, transparent 34%, rgba(151, 203, 236, 0.08) 34.4%, transparent 35.2%, transparent 100%),
+    linear-gradient(32deg, transparent 0%, transparent 60%, rgba(255, 220, 167, 0.08) 60.4%, transparent 61.2%, transparent 100%),
+    radial-gradient(circle at 18% 30%, rgba(255, 227, 179, 0.18) 0 4px, transparent 5px),
+    radial-gradient(circle at 76% 26%, rgba(127, 214, 230, 0.12) 0 4px, transparent 5px),
+    radial-gradient(circle at 62% 72%, rgba(255, 227, 179, 0.12) 0 3px, transparent 4px);
+  opacity: 0.9;
   mix-blend-mode: screen;
+}
+
+.route-map {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  background:
+    radial-gradient(circle at 12% 70%, rgba(255, 221, 174, 0.22) 0 6px, transparent 7px),
+    radial-gradient(circle at 30% 48%, rgba(118, 216, 232, 0.18) 0 5px, transparent 6px),
+    radial-gradient(circle at 56% 60%, rgba(255, 221, 174, 0.18) 0 5px, transparent 6px),
+    radial-gradient(circle at 82% 34%, rgba(118, 216, 232, 0.2) 0 6px, transparent 7px);
+}
+
+.route-map::before,
+.route-map::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.route-map::before {
+  background:
+    linear-gradient(112deg, transparent 0%, transparent 18%, rgba(130, 196, 233, 0.12) 18.4%, transparent 19.2%, transparent 100%),
+    linear-gradient(154deg, transparent 0%, transparent 44%, rgba(255, 219, 168, 0.12) 44.4%, transparent 45.2%, transparent 100%),
+    linear-gradient(96deg, transparent 0%, transparent 72%, rgba(130, 196, 233, 0.12) 72.4%, transparent 73.2%, transparent 100%);
+}
+
+.route-map::after {
+  background:
+    radial-gradient(420px 220px at 24% 62%, rgba(111, 209, 235, 0.1), transparent 60%),
+    radial-gradient(360px 200px at 72% 30%, rgba(255, 211, 145, 0.1), transparent 62%);
 }
 
 .elevated-card {
@@ -187,13 +215,14 @@ select option {
 }
 
 .sidebar-item:hover {
-  background: linear-gradient(90deg, rgba(63, 136, 255, 0.2) 0%, rgba(88, 199, 255, 0.06) 100%);
-  transform: translateX(4px);
+  background: linear-gradient(90deg, rgba(63, 136, 255, 0.16) 0%, rgba(88, 199, 255, 0.04) 100%);
+  transform: translateX(3px);
 }
 
 .sidebar-item.active {
-  background: linear-gradient(90deg, rgba(63, 136, 255, 0.28) 0%, rgba(88, 199, 255, 0.1) 100%);
-  border-left: 3px solid #58c7ff;
+  background: linear-gradient(90deg, rgba(63, 136, 255, 0.22) 0%, rgba(88, 199, 255, 0.08) 100%);
+  border: 1px solid rgba(122, 216, 235, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .progress-bar {

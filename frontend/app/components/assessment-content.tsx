@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 type Option = {
   value: string;
@@ -19,483 +19,196 @@ type CareerResult = {
   icon: string;
   summary: string;
   recommendedMajors: string[];
-  universityFit: string;
+  universities: string[];
+  admissionScore: string;
+  careerOpportunities: string[];
   skillsToBuild: string[];
   firstYearActions: string[];
 };
 
 const questions: Question[] = [
   {
-    question: "What subjects do you enjoy most in school?",
+    question: "Which area interests you most after BAC?",
     options: [
-      { value: "sciences", icon: "\u{1F52C}", title: "Sciences & Mathematics", desc: "Physics, Chemistry, Biology, Math" },
-      { value: "tech", icon: "\u{1F4BB}", title: "Technology & Computing", desc: "Programming, Systems, IT" },
-      { value: "arts", icon: "\u{1F3A8}", title: "Arts & Literature", desc: "Languages, Writing, Design" },
-      { value: "social", icon: "\u{1F91D}", title: "Social Sciences", desc: "Economics, History, Philosophy" },
+      { value: "sciences", icon: "🧪", title: "Sciences & Health", desc: "Biology, medicine, pharmacy, lab sciences" },
+      { value: "tech", icon: "💻", title: "Technology & Engineering", desc: "Computing, engineering, systems, technical studies" },
+      { value: "arts", icon: "🎨", title: "Arts, Design & Communication", desc: "Architecture, media, design, languages" },
+      { value: "social", icon: "💼", title: "Business, Law & Society", desc: "Economics, management, law, social sciences" },
     ],
   },
   {
-    question: "How do you prefer to work?",
+    question: "What type of university training fits you best?",
     options: [
-      { value: "alone", icon: "\u{1F9D8}", title: "Independently", desc: "I prefer working on my own" },
-      { value: "team", icon: "\u{1F465}", title: "In a Team", desc: "I enjoy collaborating with others" },
-      { value: "lead", icon: "\u{1F451}", title: "Leading Others", desc: "I like to take charge" },
-      { value: "flex", icon: "\u{1F504}", title: "Flexible", desc: "Depends on the situation" },
+      { value: "alone", icon: "📘", title: "Rigorous and Structured", desc: "Clear progression, strong academic framework" },
+      { value: "team", icon: "🛠️", title: "Collaborative and Project-Based", desc: "Projects, teamwork, practical application" },
+      { value: "lead", icon: "🎯", title: "Leadership and Decision-Making", desc: "Management, responsibility, strategy" },
+      { value: "flex", icon: "🔄", title: "Flexible and Multidisciplinary", desc: "I want a path that keeps several options open" },
     ],
   },
   {
-    question: "What type of work environment appeals to you?",
+    question: "Which study environment do you prefer?",
     options: [
-      { value: "office", icon: "\u{1F3E2}", title: "Office Setting", desc: "Corporate or startup environment" },
-      { value: "field", icon: "\u{1F69A}", title: "Field Work", desc: "Outdoors or traveling" },
-      { value: "lab", icon: "\u{1F52C}", title: "Research Lab", desc: "Scientific or academic setting" },
-      { value: "remote", icon: "\u{1F3E0}", title: "Remote Work", desc: "Work from anywhere" },
+      { value: "lab", icon: "🏥", title: "Hospital or Science Lab", desc: "Medical, biological, or scientific environment" },
+      { value: "field", icon: "🏗️", title: "Field, Workshop or Design Studio", desc: "Applied work, construction, design, production" },
+      { value: "office", icon: "🏢", title: "Company or Business Environment", desc: "Office, management, finance, administration" },
+      { value: "remote", icon: "🖥️", title: "Digital or Computer-Based Environment", desc: "Programming, systems, data, online work" },
     ],
   },
   {
-    question: "What motivates you the most?",
+    question: "What is your main goal after BAC?",
     options: [
-      { value: "money", icon: "\u{1F4B0}", title: "Financial Success", desc: "High salary and benefits" },
-      { value: "impact", icon: "\u{1F31F}", title: "Making an Impact", desc: "Contributing to society" },
-      { value: "growth", icon: "\u{1F4C8}", title: "Personal Growth", desc: "Learning and development" },
-      { value: "balance", icon: "\u{2696}\u{FE0F}", title: "Work-Life Balance", desc: "Time for personal life" },
+      { value: "money", icon: "💼", title: "High Employability", desc: "A path that leads quickly to strong job opportunities" },
+      { value: "impact", icon: "❤️", title: "Helping People or Society", desc: "I want useful and meaningful impact" },
+      { value: "growth", icon: "🎓", title: "Building Deep Expertise", desc: "I am ready to study seriously and specialize" },
+      { value: "balance", icon: "🧭", title: "Keeping Several Options Open", desc: "I prefer a path that leaves room to explore" },
     ],
   },
   {
-    question: "What's your preferred problem-solving approach?",
+    question: "Which type of subjects are you strongest in?",
     options: [
-      { value: "analytical", icon: "\u{1F4CA}", title: "Analytical", desc: "Data-driven decisions" },
-      { value: "creative", icon: "\u{1F4A1}", title: "Creative", desc: "Innovative solutions" },
-      { value: "practical", icon: "\u{1F527}", title: "Practical", desc: "Hands-on approach" },
-      { value: "collab", icon: "\u{1F91D}", title: "Collaborative", desc: "Team brainstorming" },
+      { value: "bio", icon: "🧬", title: "Biology and Natural Sciences", desc: "Life sciences, health-related subjects, observation" },
+      { value: "math", icon: "📐", title: "Mathematics and Physics", desc: "Calculation, logic, problem solving, technical reasoning" },
+      { value: "lang", icon: "✍️", title: "Languages and Expression", desc: "Writing, speaking, communication, interpretation" },
+      { value: "eco", icon: "📊", title: "Economics and Analysis", desc: "Management, economics, structured reasoning" },
     ],
   },
   {
-    question: "In logic puzzles, what is usually your strongest skill?",
+    question: "What kind of study rhythm suits you best?",
     options: [
-      { value: "logic_pattern", icon: "\u{1F9E9}", title: "Pattern Recognition", desc: "I quickly spot sequences and rules" },
-      { value: "logic_precision", icon: "\u{1F4CF}", title: "Precision & Accuracy", desc: "I avoid mistakes and verify details" },
-      { value: "logic_speed", icon: "\u{26A1}", title: "Fast Reasoning", desc: "I decide quickly under time pressure" },
-      { value: "logic_hypothesis", icon: "\u{1F52D}", title: "Hypothesis Testing", desc: "I test ideas step by step" },
+      { value: "demanding", icon: "🔥", title: "Very Demanding and Selective", desc: "I can handle intense programs and strong competition" },
+      { value: "balanced", icon: "⚖️", title: "Balanced with Projects and Exams", desc: "I like a mix of theory, practical work, and evaluation" },
+      { value: "creative_rhythm", icon: "🖌️", title: "Creative and Portfolio-Based", desc: "I prefer design, production, and visible output" },
+      { value: "progressive", icon: "🪜", title: "Progressive with Several Choices Later", desc: "I prefer to keep orientation options open over time" },
     ],
   },
   {
-    question: "When facing a complex problem, what do you do first?",
+    question: "What type of career start do you imagine after university?",
     options: [
-      { value: "breakdown", icon: "\u{1F5C2}\u{FE0F}", title: "Break it into parts", desc: "Divide the problem into smaller blocks" },
-      { value: "model", icon: "\u{1F4D0}", title: "Build a model", desc: "Represent it with formulas/diagrams" },
-      { value: "prototype", icon: "\u{1F6E0}\u{FE0F}", title: "Try a quick prototype", desc: "Learn by building and testing" },
-      { value: "consult", icon: "\u{1F4AC}", title: "Discuss with others", desc: "Collect perspectives before acting" },
+      { value: "health_start", icon: "🩺", title: "Healthcare or Scientific Profession", desc: "Doctor, pharmacist, researcher, lab path" },
+      { value: "tech_start", icon: "⚙️", title: "Engineer or Tech Specialist", desc: "Engineering, software, systems, technical field" },
+      { value: "design_start", icon: "🏛️", title: "Designer, Architect or Media Role", desc: "Creative, visual, communication-based path" },
+      { value: "business_start", icon: "📈", title: "Manager, Analyst or Legal/Business Role", desc: "Management, finance, law, consulting" },
     ],
   },
   {
-    question: "Which statement matches your reasoning style best?",
+    question: "What matters most in choosing your university path?",
     options: [
-      { value: "deductive", icon: "\u{1F4D8}", title: "Deductive", desc: "From principles to conclusions" },
-      { value: "inductive", icon: "\u{1F4D7}", title: "Inductive", desc: "From examples to general rules" },
-      { value: "experimental", icon: "\u{1F9EA}", title: "Experimental", desc: "I validate ideas with tests" },
-      { value: "strategic", icon: "\u{1F3AF}", title: "Strategic", desc: "I optimize decisions for outcomes" },
+      { value: "prestige", icon: "🏆", title: "Prestige and Selective Training", desc: "I value reputation, excellence, and strong selection" },
+      { value: "practical_outcome", icon: "🧰", title: "Practical Skills and Employability", desc: "I want a path that prepares me directly for work" },
+      { value: "expression", icon: "🎭", title: "Creativity and Personal Expression", desc: "I want a path where I can create and express ideas" },
+      { value: "flexibility_future", icon: "🧭", title: "Versatility and Future Flexibility", desc: "I prefer a path that keeps many future options open" },
     ],
   },
   {
-    question: "What type of university program fits you best after high school?",
+    question: "Which learning style helps you progress the most?",
     options: [
-      { value: "program_theory", icon: "\u{1F4DA}", title: "Theory-Heavy Program", desc: "Strong academic foundation and concepts" },
-      { value: "program_practice", icon: "\u{1F527}", title: "Practice-Heavy Program", desc: "Labs, workshops, and concrete application" },
-      { value: "program_project", icon: "\u{1F6E0}\u{FE0F}", title: "Project-Based Program", desc: "Build real projects every semester" },
-      { value: "program_people", icon: "\u{1F91D}", title: "People-Centered Program", desc: "Communication, management, and impact" },
+      { value: "theory_learning", icon: "📚", title: "Detailed Theory and Textbooks", desc: "I learn best with structured academic explanations" },
+      { value: "practical_learning", icon: "🧪", title: "Labs, Coding or Practical Sessions", desc: "Hands-on practice helps me understand better" },
+      { value: "project_learning", icon: "🧱", title: "Projects, Portfolios and Creative Production", desc: "I learn by building and showing concrete work" },
+      { value: "analysis_learning", icon: "🗣️", title: "Case Studies, Discussion and Analysis", desc: "I learn by comparing situations and reasoning through them" },
     ],
   },
   {
-    question: "Which university environment do you prefer?",
+    question: "How important is direct contact with people in your future studies or work?",
     options: [
-      { value: "env_research", icon: "\u{1F52C}", title: "Research University", desc: "Advanced labs and scientific rigor" },
-      { value: "env_industry", icon: "\u{1F3ED}", title: "Industry-Oriented School", desc: "Internships and job-ready training" },
-      { value: "env_business", icon: "\u{1F4BC}", title: "Business & Leadership School", desc: "Strategy, economics, entrepreneurship" },
-      { value: "env_flexible", icon: "\u{1F3E0}", title: "Flexible / Hybrid Campus", desc: "Balance between study and personal life" },
+      { value: "people_high", icon: "👥", title: "Very Important", desc: "I want a path with strong human interaction" },
+      { value: "people_medium", icon: "🤝", title: "Moderately Important", desc: "I like some interaction, but not all the time" },
+      { value: "people_low", icon: "🧩", title: "Useful but not Central", desc: "It can help, but it is not my main focus" },
+      { value: "people_minimal", icon: "🖥️", title: "Not Very Important", desc: "I am comfortable with more technical or independent work" },
     ],
   },
   {
-    question: "What matters most in your university choice?",
+    question: "What type of challenge motivates you most?",
     options: [
-      { value: "choice_employability", icon: "\u{1F4C8}", title: "Employability", desc: "Fast entry into the job market" },
-      { value: "choice_prestige", icon: "\u{1F3C6}", title: "Prestige & Excellence", desc: "Top ranking and strong reputation" },
-      { value: "choice_cost", icon: "\u{1F4B8}", title: "Affordable Cost", desc: "Good value and manageable tuition" },
-      { value: "choice_impact", icon: "\u{1F30D}", title: "Social Impact", desc: "Career that helps people and society" },
+      { value: "science_challenge", icon: "🧬", title: "Solving Scientific or Medical Problems", desc: "I like questions linked to science, health, and precision" },
+      { value: "tech_challenge", icon: "⚙️", title: "Building Systems and Technical Solutions", desc: "I enjoy making tools, systems, or technology work" },
+      { value: "creative_challenge", icon: "🎨", title: "Designing Ideas, Spaces or Creative Content", desc: "I enjoy creating concepts, visuals, and original work" },
+      { value: "business_challenge", icon: "📈", title: "Analyzing Organizations, Markets or Society", desc: "I enjoy understanding decisions, systems, and people" },
     ],
   },
   {
-    question: "How far are you ready to go in studies after BAC?",
+    question: "What kind of future path do you prefer?",
     options: [
-      { value: "study_short", icon: "\u{23F1}\u{FE0F}", title: "Short Cycle", desc: "A practical path and quick graduation" },
-      { value: "study_master", icon: "\u{1F393}", title: "Master Level", desc: "I plan to continue to Bac+5" },
-      { value: "study_doctorate", icon: "\u{1F52D}", title: "Doctorate / Research", desc: "I want deep specialization and research" },
-      { value: "study_undecided", icon: "\u{1F914}", title: "Still Exploring", desc: "I want options before finalizing" },
-    ],
-  },
-  {
-    question: "How comfortable are you with intensive weekly workload?",
-    options: [
-      { value: "workload_high", icon: "\u{1F525}", title: "Very Comfortable", desc: "I can handle demanding schedules" },
-      { value: "workload_medium", icon: "\u{1F4C5}", title: "Moderately Comfortable", desc: "Balanced challenge works best" },
-      { value: "workload_low", icon: "\u{1F33F}", title: "Prefer Lighter Pace", desc: "I learn better with lower pressure" },
-      { value: "workload_adaptive", icon: "\u{1F503}", title: "Depends on the semester", desc: "I adapt based on course load" },
-    ],
-  },
-  {
-    question: "What type of evaluation do you perform best in?",
-    options: [
-      { value: "eval_exam", icon: "\u{1F4DD}", title: "Written Exams", desc: "Strong performance in timed assessments" },
-      { value: "eval_project", icon: "\u{1F4C1}", title: "Projects", desc: "I perform best through practical delivery" },
-      { value: "eval_oral", icon: "\u{1F3A4}", title: "Oral Presentations", desc: "I explain ideas clearly in front of others" },
-      { value: "eval_mixed", icon: "\u{2696}\u{FE0F}", title: "Mixed Evaluation", desc: "Best with a balanced format" },
-    ],
-  },
-  {
-    question: "Which learning resource helps you most?",
-    options: [
-      { value: "learn_theory", icon: "\u{1F4D6}", title: "Books & Theory", desc: "I prefer structured deep reading" },
-      { value: "learn_video", icon: "\u{1F4FA}", title: "Video Courses", desc: "Visual explanations help me learn faster" },
-      { value: "learn_lab", icon: "\u{1F9EA}", title: "Labs & Practice", desc: "Hands-on experimentation is most effective" },
-      { value: "learn_peer", icon: "\u{1F465}", title: "Peer Learning", desc: "I learn well with group study and discussion" },
-    ],
-  },
-  {
-    question: "What is your preferred early career start?",
-    options: [
-      { value: "start_internship", icon: "\u{1F4BC}", title: "Early Internships", desc: "Gain work exposure as soon as possible" },
-      { value: "start_research", icon: "\u{1F52C}", title: "Research Assistant", desc: "Start through labs and research teams" },
-      { value: "start_freelance", icon: "\u{1F4BB}", title: "Freelance/Projects", desc: "Build independent work quickly" },
-      { value: "start_structured", icon: "\u{1F3E2}", title: "Structured Graduate Path", desc: "Prefer a formal step-by-step route" },
+      { value: "long_path", icon: "🎓", title: "Long, Selective Studies with Specialization", desc: "I accept a demanding path to reach a specialized profession" },
+      { value: "technical_path", icon: "🛠️", title: "A Technical Path Leading to Strong Job Opportunities", desc: "I want practical and employable technical training" },
+      { value: "creative_path", icon: "🏛️", title: "A Creative Path with Visible Personal Work", desc: "I want a path where my work can be seen and developed" },
+      { value: "flexible_path", icon: "🧭", title: "A Flexible Path with Management or Social Opportunities", desc: "I want broad options for the future" },
     ],
   },
 ];
 
-const profiles: Record<string, CareerResult> = {
-  software: {
-    title: "Software Engineering",
-    icon: "\u{1F4BB}",
-    summary: "Strong fit for programming, systems thinking, and building digital products.",
-    recommendedMajors: ["Computer Science", "Software Engineering", "Information Systems"],
-    universityFit: "Best in project-based or industry-oriented programs with internships.",
-    skillsToBuild: ["Programming fundamentals", "Algorithms and data structures", "Team collaboration (Git, agile)"],
-    firstYearActions: ["Take logic and coding foundations", "Build 2-3 portfolio projects", "Join a tech club or hackathon"],
-  },
-  medicine: {
-    title: "Medical Doctor",
-    icon: "\u{1F3E5}",
-    summary: "Good fit for science-driven work with high social impact and patient care.",
-    recommendedMajors: ["Medicine", "Pharmacy", "Biomedical Sciences"],
-    universityFit: "Best in science-heavy universities with strong labs and clinical partnerships.",
-    skillsToBuild: ["Biology and chemistry mastery", "Precision and discipline", "Communication and empathy"],
-    firstYearActions: ["Strengthen science core subjects", "Practice structured note-taking", "Explore volunteer opportunities"],
-  },
-  electrical: {
-    title: "Electrical Engineering",
-    icon: "\u{26A1}",
-    summary: "Great match for analytical and practical problem-solving in technical systems.",
-    recommendedMajors: ["Electrical Engineering", "Electronics", "Automation and Control"],
-    universityFit: "Best in technical schools with labs, prototyping, and industry projects.",
-    skillsToBuild: ["Math and physics depth", "Circuit and systems thinking", "Simulation and troubleshooting"],
-    firstYearActions: ["Focus on calculus and physics", "Work on small electronics projects", "Learn one simulation tool"],
-  },
-  business: {
-    title: "Business Manager",
-    icon: "\u{1F4BC}",
-    summary: "Strong profile for leadership, team coordination, and strategic decision-making.",
-    recommendedMajors: ["Business Administration", "Management", "Economics and Finance"],
-    universityFit: "Best in business-focused schools with case studies and internships.",
-    skillsToBuild: ["Communication and negotiation", "Data-driven decision making", "Planning and leadership"],
-    firstYearActions: ["Learn spreadsheet and analytics basics", "Join entrepreneurship or debate clubs", "Take part in team projects"],
-  },
+const defaultResult: CareerResult = {
+  title: "Software Engineering",
+  icon: "💻",
+  summary: "You have an analytical mind. Software development is a great fit!",
+  recommendedMajors: ["Computer Science", "Software Engineering", "Information Systems"],
+  universities: ["USTHB", "ESI Alger", "Univ. Bejaia", "Univ. Oran 1"],
+  admissionScore: "13.5 - 16.0 / 20",
+  careerOpportunities: ["Software Developer", "Web Developer", "Data Scientist", "Cybersecurity"],
+  skillsToBuild: ["Programming", "Algorithms", "Problem Solving"],
+  firstYearActions: ["Learn Python/JavaScript", "Build personal projects", "Join coding communities"],
 };
 
-function scoreAnswers(answers: Record<number, string>) {
-  const scores: Record<"software" | "medicine" | "electrical" | "business", number> = {
-    software: 0,
-    medicine: 0,
-    electrical: 0,
-    business: 0,
-  };
-
-  const a0 = answers[0];
-  const a1 = answers[1];
-  const a2 = answers[2];
-  const a3 = answers[3];
-  const a4 = answers[4];
-  const a5 = answers[5];
-  const a6 = answers[6];
-  const a7 = answers[7];
-  const a8 = answers[8];
-  const a9 = answers[9];
-  const a10 = answers[10];
-  const a11 = answers[11];
-  const a12 = answers[12];
-  const a13 = answers[13];
-  const a14 = answers[14];
-  const a15 = answers[15];
-
-  if (a0 === "tech") scores.software += 3;
-  if (a0 === "sciences") {
-    scores.medicine += 2;
-    scores.electrical += 2;
-  }
-  if (a0 === "social") scores.business += 2;
-
-  if (a1 === "team") {
-    scores.business += 2;
-    scores.medicine += 1;
-  }
-  if (a1 === "lead") scores.business += 3;
-  if (a1 === "alone") scores.software += 1;
-
-  if (a2 === "lab") {
-    scores.medicine += 2;
-    scores.electrical += 1;
-  }
-  if (a2 === "office") {
-    scores.software += 1;
-    scores.business += 1;
-  }
-  if (a2 === "field") scores.electrical += 2;
-  if (a2 === "remote") scores.software += 2;
-
-  if (a3 === "impact") scores.medicine += 2;
-  if (a3 === "money") scores.business += 2;
-  if (a3 === "growth") {
-    scores.software += 1;
-    scores.electrical += 1;
-  }
-  if (a3 === "balance") scores.software += 1;
-
-  if (a4 === "analytical") scores.electrical += 2;
-  if (a4 === "creative") scores.software += 2;
-  if (a4 === "practical") scores.electrical += 1;
-  if (a4 === "collab") {
-    scores.business += 1;
-    scores.medicine += 1;
-  }
-
-  if (a5 === "logic_pattern") {
-    scores.software += 2;
-    scores.electrical += 2;
-  }
-  if (a5 === "logic_precision") {
-    scores.medicine += 2;
-    scores.electrical += 1;
-  }
-  if (a5 === "logic_speed") {
-    scores.business += 1;
-    scores.software += 1;
-  }
-  if (a5 === "logic_hypothesis") {
-    scores.medicine += 1;
-    scores.software += 1;
-    scores.electrical += 1;
-  }
-
-  if (a6 === "breakdown") {
-    scores.software += 1;
-    scores.electrical += 2;
-  }
-  if (a6 === "model") {
-    scores.electrical += 2;
-    scores.medicine += 1;
-  }
-  if (a6 === "prototype") {
-    scores.software += 2;
-    scores.electrical += 1;
-  }
-  if (a6 === "consult") {
-    scores.business += 2;
-    scores.medicine += 1;
-  }
-
-  if (a7 === "deductive") {
-    scores.electrical += 2;
-    scores.software += 1;
-  }
-  if (a7 === "inductive") {
-    scores.medicine += 2;
-    scores.business += 1;
-  }
-  if (a7 === "experimental") {
-    scores.medicine += 1;
-    scores.software += 1;
-    scores.electrical += 1;
-  }
-  if (a7 === "strategic") {
-    scores.business += 2;
-    scores.software += 1;
-  }
-
-  if (a8 === "program_theory") {
-    scores.electrical += 1;
-    scores.medicine += 1;
-  }
-  if (a8 === "program_practice") {
-    scores.electrical += 2;
-    scores.medicine += 1;
-  }
-  if (a8 === "program_project") scores.software += 2;
-  if (a8 === "program_people") {
-    scores.business += 2;
-    scores.medicine += 1;
-  }
-
-  if (a9 === "env_research") {
-    scores.medicine += 2;
-    scores.electrical += 2;
-  }
-  if (a9 === "env_industry") {
-    scores.software += 2;
-    scores.electrical += 1;
-  }
-  if (a9 === "env_business") scores.business += 3;
-  if (a9 === "env_flexible") scores.software += 1;
-
-  if (a10 === "choice_employability") {
-    scores.software += 1;
-    scores.business += 1;
-    scores.electrical += 1;
-  }
-  if (a10 === "choice_prestige") {
-    scores.medicine += 1;
-    scores.electrical += 1;
-  }
-  if (a10 === "choice_cost") {
-    scores.business += 1;
-    scores.software += 1;
-  }
-  if (a10 === "choice_impact") scores.medicine += 2;
-
-  if (a11 === "study_short") {
-    scores.business += 1;
-    scores.software += 1;
-  }
-  if (a11 === "study_master") {
-    scores.software += 1;
-    scores.electrical += 1;
-    scores.business += 1;
-  }
-  if (a11 === "study_doctorate") {
-    scores.medicine += 2;
-    scores.electrical += 1;
-  }
-  if (a11 === "study_undecided") scores.business += 1;
-
-  if (a12 === "workload_high") {
-    scores.medicine += 1;
-    scores.electrical += 1;
-  }
-  if (a12 === "workload_medium") {
-    scores.software += 1;
-    scores.business += 1;
-  }
-  if (a12 === "workload_low") scores.business += 1;
-  if (a12 === "workload_adaptive") scores.software += 1;
-
-  if (a13 === "eval_exam") {
-    scores.medicine += 1;
-    scores.electrical += 1;
-  }
-  if (a13 === "eval_project") {
-    scores.software += 2;
-    scores.electrical += 1;
-  }
-  if (a13 === "eval_oral") scores.business += 2;
-  if (a13 === "eval_mixed") {
-    scores.software += 1;
-    scores.business += 1;
-  }
-
-  if (a14 === "learn_theory") {
-    scores.medicine += 1;
-    scores.electrical += 1;
-  }
-  if (a14 === "learn_video") scores.software += 1;
-  if (a14 === "learn_lab") {
-    scores.electrical += 1;
-    scores.medicine += 1;
-  }
-  if (a14 === "learn_peer") scores.business += 1;
-
-  if (a15 === "start_internship") {
-    scores.software += 1;
-    scores.business += 1;
-    scores.electrical += 1;
-  }
-  if (a15 === "start_research") {
-    scores.medicine += 1;
-    scores.electrical += 1;
-  }
-  if (a15 === "start_freelance") scores.software += 2;
-  if (a15 === "start_structured") scores.business += 1;
-
-  return Object.keys(scores)
-    .map((key) => ({ key, score: scores[key as keyof typeof scores] }))
-    .sort((a, b) => b.score - a.score);
-}
-
 export function AssessmentContent() {
-  const BASE_QUESTION_COUNT = 12;
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [showResult, setShowResult] = useState(false);
-  const [includeAdvanced, setIncludeAdvanced] = useState(false);
-  const [showAdvancedPrompt, setShowAdvancedPrompt] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<CareerResult | null>(null);
 
-  const activeQuestions = includeAdvanced ? questions : questions.slice(0, BASE_QUESTION_COUNT);
-  const question = activeQuestions[currentQuestion];
-  const progress = ((currentQuestion + 1) / activeQuestions.length) * 100;
+  const question = questions[currentQuestion];
+  const progress = ((currentQuestion + 1) / questions.length) * 100;
   const selected = answers[currentQuestion];
-  const ranked = useMemo(() => scoreAnswers(answers), [answers]);
 
   function chooseAnswer(value: string) {
-    setAnswers((prev) => {
-      const nextAnswers = { ...prev, [currentQuestion]: value };
-      const isLastQuestion = currentQuestion === activeQuestions.length - 1;
+    setAnswers((prev) => ({ ...prev, [currentQuestion]: value }));
 
-      if (!isLastQuestion) {
-        setTimeout(() => setCurrentQuestion((q) => Math.min(q + 1, activeQuestions.length - 1)), 120);
-      } else if (!includeAdvanced && currentQuestion === BASE_QUESTION_COUNT - 1) {
-        setTimeout(() => setShowAdvancedPrompt(true), 120);
-      } else {
-        setTimeout(() => setShowResult(true), 120);
-      }
-
-      return nextAnswers;
-    });
+    window.setTimeout(() => {
+      next(value);
+    }, 160);
   }
 
-  function next() {
-    if (!selected) return;
+  function next(answerOverride?: string) {
+    const answerToUse = answerOverride ?? selected;
+    if (!answerToUse) return;
 
-    if (currentQuestion < activeQuestions.length - 1) {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion((v) => v + 1);
       return;
     }
 
-    if (!includeAdvanced && currentQuestion === BASE_QUESTION_COUNT - 1) {
-      setShowAdvancedPrompt(true);
-      return;
-    }
-
+    setIsLoading(true);
     setShowResult(true);
+
+    const answersArray = Array.from({ length: questions.length }, (_, index) => answers[index] || "");
+    answersArray[currentQuestion] = answerToUse;
+
+    fetch("http://127.0.0.1:8000/api/ai/quiz/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answers: answersArray }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setTimeout(() => {
+          setAiResult(data.result || defaultResult);
+          setIsLoading(false);
+        }, 3000);
+      })
+      .catch(() => {
+        setTimeout(() => {
+          setAiResult(defaultResult);
+          setIsLoading(false);
+        }, 3000);
+      });
   }
 
   function previous() {
-    if (showAdvancedPrompt) {
-      setShowAdvancedPrompt(false);
-      return;
-    }
-
     if (showResult) {
       setShowResult(false);
-      setCurrentQuestion(activeQuestions.length - 1);
+      setCurrentQuestion(questions.length - 1);
       return;
     }
-
     if (currentQuestion > 0) setCurrentQuestion((v) => v - 1);
   }
 
@@ -503,195 +216,183 @@ export function AssessmentContent() {
     setAnswers({});
     setCurrentQuestion(0);
     setShowResult(false);
-    setIncludeAdvanced(false);
-    setShowAdvancedPrompt(false);
+    setAiResult(null);
+    setIsLoading(false);
   }
 
-  function takeAdvancedSection() {
-    setIncludeAdvanced(true);
-    setShowAdvancedPrompt(false);
-    setCurrentQuestion(BASE_QUESTION_COUNT);
-  }
+  if (showResult) {
+    if (isLoading) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-bounce text-6xl mb-6">🧠</div>
+            <h1 className="text-4xl font-bold text-white mb-4">AI is analyzing your profile...</h1>
+            <p className="text-xl text-blue-200">Our algorithm is finding your perfect career match</p>
+            <div className="mt-8 flex justify-center gap-2">
+              <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
+              <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse delay-100"></div>
+              <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse delay-200"></div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
-  function finishCoreNow() {
-    setShowAdvancedPrompt(false);
-    setShowResult(true);
-  }
-
-  if (showAdvancedPrompt) {
+    const result = aiResult || defaultResult;
     return (
-      <section className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold">AI Career Assessment</h1>
-          <p className="mt-2 text-blue-300">Core section completed. You can finish now or add advanced questions for higher accuracy.</p>
-        </div>
-        <div className="glass-panel rounded-3xl p-8">
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-            <p className="text-lg text-blue-100">Advanced section adds 4 extra questions focused on learning style and study rhythm.</p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <button onClick={finishCoreNow} className="rounded-xl border border-white/20 bg-white/10 px-6 py-3 transition hover:bg-white/20">
-                Finish Now
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900 py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-4xl font-bold text-white mb-8 text-center">🎓 Your AI-Powered Career Recommendation</h1>
+          
+          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 border border-white/20">
+            <div className="flex items-center gap-4 mb-6">
+              <span className="text-7xl">{result.icon}</span>
+              <div>
+                <h2 className="text-3xl font-bold text-white">{result.title}</h2>
+                <p className="text-blue-200 mt-2">{result.summary}</p>
+              </div>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-6 mt-8">
+              <div className="bg-white/5 rounded-xl p-5">
+                <h3 className="text-lg font-semibold text-blue-300 mb-3">📚 Recommended Majors</h3>
+                <ul className="space-y-2">
+                  {result.recommendedMajors.map((major, i) => (
+                    <li key={i} className="text-white flex items-center gap-2">
+                      <span className="text-blue-400">▸</span> {major}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="bg-white/5 rounded-xl p-5">
+                <h3 className="text-lg font-semibold text-blue-300 mb-3">🏛️ Recommended Universities</h3>
+                <ul className="space-y-2">
+                  {result.universities.map((uni, i) => (
+                    <li key={i} className="text-white flex items-center gap-2">
+                      <span className="text-blue-400">▸</span> {uni}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="bg-white/5 rounded-xl p-5">
+                <h3 className="text-lg font-semibold text-blue-300 mb-3">📊 Estimated Admission Score</h3>
+                <p className="text-white text-2xl font-bold">{result.admissionScore}</p>
+                <p className="text-blue-200 text-sm mt-1">Based on 2025 thresholds</p>
+              </div>
+              
+              <div className="bg-white/5 rounded-xl p-5">
+                <h3 className="text-lg font-semibold text-blue-300 mb-3">💼 Career Opportunities</h3>
+                <ul className="space-y-2">
+                  {result.careerOpportunities.map((job, i) => (
+                    <li key={i} className="text-white flex items-center gap-2">
+                      <span className="text-blue-400">▸</span> {job}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="bg-white/5 rounded-xl p-5">
+                <h3 className="text-lg font-semibold text-blue-300 mb-3">🛠️ Skills to Build Now</h3>
+                <ul className="space-y-2">
+                  {result.skillsToBuild.map((skill, i) => (
+                    <li key={i} className="text-white flex items-center gap-2">
+                      <span className="text-blue-400">▸</span> {skill}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="bg-white/5 rounded-xl p-5">
+                <h3 className="text-lg font-semibold text-blue-300 mb-3">🎯 First Year Action Plan</h3>
+                <ul className="space-y-2">
+                  {result.firstYearActions.map((action, i) => (
+                    <li key={i} className="text-white flex items-center gap-2">
+                      <span className="text-blue-400">▸</span> {action}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            
+            <div className="mt-8 flex justify-center">
+              <button
+                onClick={restart}
+                className="px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl transition-all transform hover:scale-105"
+              >
+                🔄 Retake Assessment
               </button>
-              <button onClick={takeAdvancedSection} className="glow-btn rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 font-semibold">
-                Continue with Advanced
-              </button>
             </div>
           </div>
         </div>
-      </section>
-    );
-  }
-
-    if (showResult) {
-    const top = ranked[0] ?? { key: "software", score: 0 };
-    const second = ranked[1] ?? { key: "medicine", score: 0 };
-    const primary = profiles[top.key] ?? profiles.software;
-    const secondary = profiles[second.key] ?? profiles.medicine;
-    const maxScore = Math.max(1, ...(ranked.map((entry) => entry.score)));
-
-    return (
-      <section className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold">AI Career Assessment Result</h1>
-          <p className="mt-2 text-blue-300">Here is your recommendation based on your selected answers.</p>
-        </div>
-
-        <div className="glass-panel rounded-3xl p-8">
-          <div className="rounded-2xl border border-white/10 bg-blue-500/15 p-6">
-            <p className="text-sm text-blue-200">Top Recommendation</p>
-            <h2 className="mt-2 flex items-center gap-3 text-3xl font-bold">
-              <span>{primary.icon}</span>
-              <span>{primary.title}</span>
-            </h2>
-            <p className="mt-3 text-blue-200">{primary.summary}</p>
-            <p className="mt-3 text-sm text-blue-300">Confidence: {Math.min(99, 70 + top.score * 4)}%</p>
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-5">
-            <p className="text-sm text-blue-200">Also suitable for you</p>
-            <p className="mt-2 flex items-center gap-2 text-xl font-semibold">
-              <span>{secondary.icon}</span>
-              <span>{secondary.title}</span>
-            </p>
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm text-blue-200">Recommended university majors</p>
-              <p className="mt-2 text-lg text-blue-100">{primary.recommendedMajors.join(" | ")}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm text-blue-200">University environment fit</p>
-              <p className="mt-2 text-lg text-blue-100">{primary.universityFit}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm text-blue-200">Skills to build now</p>
-              <p className="mt-2 text-lg text-blue-100">{primary.skillsToBuild.join(" | ")}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="text-sm text-blue-200">First-year action plan</p>
-              <p className="mt-2 text-lg text-blue-100">{primary.firstYearActions.join(" | ")}</p>
-            </div>
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-5">
-            <p className="text-sm text-blue-200">Career fit breakdown</p>
-            <div className="mt-4 space-y-3">
-              {ranked.map((entry) => {
-                const profile = profiles[entry.key];
-                if (!profile) return null;
-                const percent = Math.round((entry.score / maxScore) * 100);
-                return (
-                  <div key={entry.key}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
-                      <span className="text-blue-100">
-                        {profile.icon} {profile.title}
-                      </span>
-                      <span className="text-blue-300">{percent}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-white/10">
-                      <div className="h-2 rounded-full bg-blue-500/80" style={{ width: `${percent}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button onClick={previous} className="rounded-xl border border-white/20 bg-white/10 px-6 py-3 transition hover:bg-white/20">
-              {"\u{2190} Back"}
-            </button>
-            <button onClick={restart} className="glow-btn rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 font-semibold">
-              Retake Assessment
-            </button>
-          </div>
-        </div>
-      </section>
+      </div>
     );
   }
 
   return (
-    <section className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">AI Career Assessment</h1>
-        <p className="mt-2 text-blue-300">Answer these questions to help us find your ideal career path</p>
-      </div>
-
-      <div className="glass-panel rounded-3xl p-8">
-        <div className="mb-6 flex items-center justify-between">
-          <p className="text-blue-300">
-            Question {currentQuestion + 1} of {activeQuestions.length}
-          </p>
-          <div className="h-3 w-48 rounded-full bg-white/10">
-            <div className="progress-bar h-3 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900 py-6 px-4 md:py-8">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold text-white md:text-4xl mb-2">🧠 AI Career Assessment</h1>
+        <p className="text-blue-200 mb-5 md:mb-6">Answer these questions to find your ideal career path</p>
+        
+        <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-5 md:p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <p className="text-blue-200">
+              Question {currentQuestion + 1} of {questions.length}
+            </p>
+            <div className="h-2 w-32 rounded-full bg-white/20 md:w-48">
+              <div 
+                className="h-2 bg-blue-400 rounded-full transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
           </div>
-        </div>
-
-        <h2 className="mb-6 text-xl font-bold md:text-2xl">{question.question}</h2>
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {question.options.map((option) => {
-            const isSelected = selected === option.value;
-            return (
+          
+          <h2 className="mb-3 text-xl font-bold text-white md:text-2xl">{question.question}</h2>
+          <p className="mb-4 text-sm text-blue-200">
+            Select one answer to continue automatically.
+          </p>
+          
+          <div className="grid gap-3 md:grid-cols-2">
+            {question.options.map((option) => (
               <button
                 key={option.value}
-                type="button"
                 onClick={() => chooseAnswer(option.value)}
-                className={`glass-panel rounded-xl border-2 p-5 text-left transition-all ${
-                  isSelected
-                    ? "border-blue-500 bg-blue-500/20"
-                    : "border-transparent hover:border-blue-500/50 hover:bg-blue-500/20"
+                className={`rounded-xl p-4 text-left transition-all ${
+                  selected === option.value
+                    ? "bg-blue-500/30 border-2 border-blue-400"
+                    : "bg-white/5 hover:bg-white/10 border-2 border-transparent"
                 }`}
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="block text-xl text-blue-200">{option.icon}</span>
-                  {isSelected ? <span className="text-sm text-green-300">Selected</span> : null}
+                <div className="flex items-center gap-3">
+                  <span className="text-xl md:text-2xl">{option.icon}</span>
+                  <div className="min-w-0">
+                    <p className="text-base font-semibold text-white md:text-lg">{option.title}</p>
+                    <p className="text-sm text-blue-200">{option.desc}</p>
+                  </div>
+                  {selected === option.value && (
+                    <span className="ml-auto text-green-400 text-sm">✓ Selected</span>
+                  )}
                 </div>
-                <span className="text-xl font-semibold md:text-2xl">{option.title}</span>
-                <p className="mt-1 text-base text-blue-300 md:text-lg">{option.desc}</p>
               </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-6 flex justify-between">
-          <button
-            onClick={previous}
-            disabled={currentQuestion === 0}
-            className="rounded-xl border border-white/20 bg-white/10 px-6 py-3 text-lg transition-all hover:bg-white/20 disabled:opacity-50"
-          >
-            {"\u{2190} Previous"}
-          </button>
-          <button
-            onClick={next}
-            disabled={!selected}
-            className="glow-btn rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-3 text-lg font-semibold disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {currentQuestion === activeQuestions.length - 1 ? `Finish ${"\u{2192}"}` : `Next ${"\u{2192}"}`}
-          </button>
+            ))}
+          </div>
+          
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <button
+              onClick={previous}
+              disabled={currentQuestion === 0}
+              className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              ← Previous
+            </button>
+            <div className="rounded-xl bg-white/5 px-3 py-2 text-xs text-blue-100 md:px-4 md:py-3 md:text-sm">
+              {currentQuestion === questions.length - 1 ? "Last answer submits the quiz" : "Next step opens automatically"}
+            </div>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

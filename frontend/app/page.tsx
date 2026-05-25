@@ -3,13 +3,11 @@ import { LogoMark } from "@/app/components/logo-mark";
 
 export default function HomePage() {
   return (
-    <main className="galaxy-landing relative min-h-screen overflow-hidden">
-      <div className="galaxy-stars pointer-events-none absolute inset-0" />
-      <div className="route-map" />
-      <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-sky-300/10 blur-3xl" />
-      <div className="pointer-events-none absolute right-[-4rem] top-10 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
-      <div className="pointer-events-none absolute left-[14%] top-[68%] h-44 w-44 rounded-full bg-amber-200/16 blur-3xl" />
-      <div className="pointer-events-none absolute right-[12%] top-[20%] h-48 w-48 rounded-full bg-orange-200/12 blur-3xl" />
+    <main className="galaxy-landing landing-page relative min-h-screen overflow-hidden">
+      <div className="pointer-events-none absolute -left-24 top-0 h-80 w-80 rounded-full bg-blue-300/15 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-8 h-96 w-96 rounded-full bg-cyan-400/10 blur-3xl" />
+      <div className="pointer-events-none absolute left-[12%] top-[62%] h-56 w-56 rounded-full bg-amber-200/20 blur-3xl" />
+      <div className="pointer-events-none absolute right-[16%] top-[22%] h-52 w-52 rounded-full bg-amber-100/18 blur-3xl" />
 
       <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-6 py-8 md:px-10">
         <header className="mb-16 flex items-center">
@@ -23,13 +21,13 @@ export default function HomePage() {
 
         <section className="my-auto">
           <div className="glass-panel rounded-[2rem] px-8 py-12 text-center md:px-14 md:py-16" style={{ caretColor: "transparent" }}>
-            <p className="mx-auto mb-5 inline-block rounded-full border border-cyan-200/25 bg-cyan-200/8 px-3 py-1 text-sm text-cyan-100">
+            <p className="mx-auto mb-5 inline-block rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-sm text-cyan-200">
               AI Orientation Platform
             </p>
             <h1 className="text-4xl font-extrabold leading-tight md:text-6xl">
               Find Your Best
               <br />
-              <span className="bg-gradient-to-r from-cyan-100 via-sky-200 to-amber-100 bg-clip-text text-transparent">University Path</span>
+              <span className="bg-gradient-to-r from-cyan-300 to-blue-300 bg-clip-text text-transparent">University Path</span>
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg text-blue-200">
               Clear guidance after BAC, without confusion.

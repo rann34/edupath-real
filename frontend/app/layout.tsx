@@ -1,5 +1,7 @@
 import "./globals.css";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { ThemeProvider } from "@/app/components/theme-provider";
+import { ThemeToggle } from "@/app/components/theme-toggle";
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -13,9 +15,12 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${plusJakarta.variable} min-h-screen bg-[var(--bg-main)] text-[var(--text-main)]`}>
-        {children}
+        <ThemeProvider>
+          <ThemeToggle />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

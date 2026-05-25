@@ -331,12 +331,12 @@ export function AssessmentContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900 py-6 px-4 md:py-8">
+    <div className="soft-grid min-h-screen bg-transparent py-6 px-4 md:py-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-white md:text-4xl mb-2">🧠 AI Career Assessment</h1>
         <p className="text-blue-200 mb-5 md:mb-6">Answer these questions to find your ideal career path</p>
         
-        <div className="bg-white/10 backdrop-blur-lg rounded-3xl border border-white/20 p-5 md:p-6">
+        <div className="glass-panel rounded-3xl p-5 md:p-6">
           <div className="mb-5 flex items-center justify-between">
             <p className="text-blue-200">
               Question {currentQuestion + 1} of {questions.length}
@@ -379,7 +379,7 @@ export function AssessmentContent() {
             ))}
           </div>
           
-          <div className="mt-5 flex items-center justify-between gap-3">
+          <div className="mt-5 flex items-center gap-3">
             <button
               onClick={previous}
               disabled={currentQuestion === 0}
@@ -387,9 +387,6 @@ export function AssessmentContent() {
             >
               ← Previous
             </button>
-            <div className="rounded-xl bg-white/5 px-3 py-2 text-xs text-blue-100 md:px-4 md:py-3 md:text-sm">
-              {currentQuestion === questions.length - 1 ? "Last answer submits the quiz" : "Next step opens automatically"}
-            </div>
           </div>
         </div>
       </div>

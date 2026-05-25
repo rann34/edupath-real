@@ -1,86 +1,12 @@
-import math
 import os
 import pickle
-from collections import Counter, defaultdict
-
-
-class NaiveBayesQuizModel:
-    def __init__(self):
-        self.class_counts = Counter()
-        self.feature_value_counts = defaultdict(Counter)
-        self.feature_values = defaultdict(set)
-        self.classes = []
-        self.total_samples = 0
-
-    def fit(self, rows, target_key, feature_keys):
-        self.class_counts = Counter()
-        self.feature_value_counts = defaultdict(Counter)
-        self.feature_values = defaultdict(set)
-        self.total_samples = len(rows)
-
-        for row in rows:
-            label = row[target_key]
-            self.class_counts[label] += 1
-            for feature in feature_keys:
-                value = row[feature]
-                self.feature_value_counts[(label, feature)][value] += 1
-                self.feature_values[feature].add(value)
-
-        self.classes = sorted(self.class_counts.keys())
-
-    def predict(self, row, feature_keys):
-        if not self.classes:
-            raise ValueError("Model has not been trained.")
-
-        best_label = None
-        best_score = None
-        num_classes = len(self.classes)
-
-        for label in self.classes:
-            prior = (self.class_counts[label] + 1) / (self.total_samples + num_classes)
-            score = math.log(prior)
-            for feature in feature_keys:
-                value = row[feature]
-                counts = self.feature_value_counts[(label, feature)]
-                vocab_size = len(self.feature_values[feature])
-                likelihood = (counts[value] + 1) / (self.class_counts[label] + vocab_size)
-                score += math.log(likelihood)
-            if best_score is None or score > best_score:
-                best_label = label
-                best_score = score
-
-        return best_label
-
-    def to_payload(self):
-        return {
-            "class_counts": dict(self.class_counts),
-            "feature_value_counts": {
-                f"{label}|||{feature}": dict(counter)
-                for (label, feature), counter in self.feature_value_counts.items()
-            },
-            "feature_values": {feature: sorted(values) for feature, values in self.feature_values.items()},
-            "classes": list(self.classes),
-            "total_samples": self.total_samples,
-        }
-
-    @classmethod
-    def from_payload(cls, payload):
-        model = cls()
-        model.class_counts = Counter(payload["class_counts"])
-        model.feature_value_counts = defaultdict(Counter)
-        for key, counts in payload["feature_value_counts"].items():
-            label, feature = key.split("|||", 1)
-            model.feature_value_counts[(label, feature)] = Counter(counts)
-        model.feature_values = defaultdict(set)
-        for feature, values in payload["feature_values"].items():
-            model.feature_values[feature] = set(values)
-        model.classes = list(payload["classes"])
-        model.total_samples = int(payload["total_samples"])
-        return model
+from sklearn.naive_bayes import CategoricalNB
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OrdinalEncoder
 
 
 class AdaptiveQuizEngine:
-    MODEL_VERSION = 7
+    MODEL_VERSION = 8
     FEATURE_COLUMNS = ["q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9", "q10", "q11", "q12"]
 
     def __init__(self):
@@ -336,7 +262,7 @@ class AdaptiveQuizEngine:
                 with open(self.model_path, "rb") as model_file:
                     payload = pickle.load(model_file)
                 if isinstance(payload, dict) and payload.get("version") == self.MODEL_VERSION:
-                    self.model = NaiveBayesQuizModel.from_payload(payload["model_state"])
+                    self.model = payload["model_state"]
                     self.training_samples = payload["training_samples"]
                     return
             except Exception:
@@ -455,14 +381,21 @@ class AdaptiveQuizEngine:
         return rows
 
     def _train_model(self):
-        print("[AI] Training naive Bayes quiz model...")
+        print("[AI] Training scikit-learn quiz model...")
         data = self._build_training_dataset()
-        self.model = NaiveBayesQuizModel()
-        self.model.fit(data, target_key="filiere", feature_keys=self.FEATURE_COLUMNS)
+        x_train = [[row[column] for column in self.FEATURE_COLUMNS] for row in data]
+        y_train = [row["filiere"] for row in data]
+        self.model = Pipeline(
+            steps=[
+                ("encoder", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
+                ("model", CategoricalNB()),
+            ]
+        )
+        self.model.fit(x_train, y_train)
         self.training_samples = len(data)
         payload = {
             "version": self.MODEL_VERSION,
-            "model_state": self.model.to_payload(),
+            "model_state": self.model,
             "training_samples": self.training_samples,
         }
         with open(self.model_path, "wb") as model_file:
@@ -497,6 +430,6 @@ class AdaptiveQuizEngine:
             raise ValueError(f"Exactly {len(self.FEATURE_COLUMNS)} quiz answers are required.")
 
         row = self._row_from_answers(normalized_answers)
-        prediction = self.model.predict(row, feature_keys=self.FEATURE_COLUMNS)
+        prediction = self.model.predict([[row[column] for column in self.FEATURE_COLUMNS]])[0]
         print(f"[AI] Prediction: {prediction}")
         return self.career_details[prediction]

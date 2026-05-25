@@ -217,6 +217,26 @@ class EduPathRecommender:
             return 0.0
         return 0.08 if preferred_wilaya.strip().lower() == city.strip().lower() else 0.0
 
+    def _selectivity_fit(self, required_bac: float) -> float:
+        return max(0.0, min((required_bac - 10.0) / 10.0, 1.0))
+
+    def _excellence_bonus(self, bac_average: float, required_bac: float, track: str) -> float:
+        if bac_average < 17.0:
+            return 0.0
+
+        bonus = 0.0
+        if required_bac >= 16.0:
+            bonus += 0.08
+        elif required_bac >= 14.5:
+            bonus += 0.04
+
+        if bac_average >= 18.5 and track in {"computer", "engineering", "medical"}:
+            bonus += 0.05
+        elif bac_average >= 17.5 and track in {"computer", "engineering", "medical", "science"}:
+            bonus += 0.03
+
+        return min(bonus, 0.14)
+
     def _subject_labels(self, stream_key: str):
         if stream_key == "technique_math":
             return ["Technical Science", "Physics", "Mathematics"]
@@ -292,13 +312,17 @@ class EduPathRecommender:
                 continue
 
             city_bonus = self._city_bonus(wilaya, row["city"])
+            selectivity_fit = self._selectivity_fit(required_bac)
+            excellence_bonus = self._excellence_bonus(bac_average, required_bac, track)
             final_score = (
-                (bac_fit * 0.36)
-                + (threshold_fit * 0.24)
-                + (subject_fit * 0.16)
+                (bac_fit * 0.30)
+                + (threshold_fit * 0.22)
+                + (subject_fit * 0.15)
                 + (stream_fit * 0.08)
                 + (ai_fit * 0.12)
+                + (selectivity_fit * 0.13)
                 + city_bonus
+                + excellence_bonus
             )
 
             modules = row["modules"].split("||") if row["modules"] else []
@@ -313,6 +337,8 @@ class EduPathRecommender:
                 reason_parts.append(f"Near threshold: {bac_average:.2f}/{required_bac:.2f}")
             reason_parts.append(f"Branch aligned: {track}")
             reason_parts.append(f"AI fit: {ai_confidence:.1f}%")
+            if excellence_bonus > 0:
+                reason_parts.append("High-achievement profile")
             reason_parts.append(f"Subject readiness: {close_subjects}/3")
             if city_bonus > 0:
                 reason_parts.append(f"Local option: {row['city']}")
@@ -323,6 +349,8 @@ class EduPathRecommender:
                 f"The profile model gives this track an AI compatibility score of {ai_confidence:.1f}%.",
                 f"You meet or are close to {close_subjects} out of 3 subject thresholds.",
             ]
+            if excellence_bonus > 0:
+                why.append("Your high BAC average gives extra priority to selective programs that remain compatible with your academic profile.")
             if city_bonus > 0:
                 why.append(f"It is also located in {row['city']}, which matches your wilaya preference.")
             if modules:

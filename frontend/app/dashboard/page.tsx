@@ -137,70 +137,84 @@ function DashboardHome({
   universitiesMatched: number;
 }) {
   const [aiRecommendations, setAiRecommendations] = useState<any[]>([]);
-  const [isLoadingAI, setIsLoadingAI] = useState(true);
+  const [isLoadingAI, setIsLoadingAI] = useState(profileCompletion === 100);
   const [aiError, setAiError] = useState("");
   const [openRecommendation, setOpenRecommendation] = useState<string | null>(null);
+  const isProfileComplete = profileCompletion === 100;
 
- useEffect(() => {
-  async function fetchAIRecommendations() {
-    if (!user) return;
-    
-    setIsLoadingAI(true);
-    setAiError("");
-    
-    const stream = user.bac_stream || "Sciences";
-    const avg = user.bac_average || 0;
-    const math = user.math_grade || 0;
-    const physics = user.physics_grade || 0;
-    const subject3 = user.subject3_grade || 0;
-    const wilaya = user.wilaya || "Algiers";
-    
-    try {
-      const data = await api("/api/ai/recommend", {
-        method: "POST",
-        body: {
-          bac_stream: stream,
-          bac_average: avg,
-          math_grade: math,
-          physics_grade: physics,
-          subject3_grade: subject3,
-          wilaya,
-        },
-      });
+  const ministryDeadline = useMemo(() => new Date("2026-07-31T23:59:59Z"), []);
+  const daysToDeadline = useMemo(() => {
+    const now = new Date();
+    const diffMs = ministryDeadline.getTime() - now.getTime();
+    return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  }, [ministryDeadline]);
+  const deadlineStatus = daysToDeadline === 0 ? "Deadline passed" : daysToDeadline <= 3 ? "Final call" : "Submit soon";
 
-      if (data.recommendations) {
-        const formatted = data.recommendations.map((rec: any) => ({
-          label: rec.program.name,
-          university: rec.program.university,
-          minScore: rec.program.min_score,
-          minScore1: rec.program.min_score_1,
-          minScore2: rec.program.min_score_2,
-          minScore3: rec.program.min_score_3,
-          city: rec.program.city,
-          modules: rec.program.modules || [],
-          fit: Math.round(rec.match_percentage),
-          eligible: rec.eligible,
-          recommendationLevel: rec.recommendation_level,
-          reason: rec.reason,
-          whyRecommended: rec.why_recommended || [],
-          subjectBreakdown: rec.subject_breakdown || [],
-          scoreDetails: [`Required BAC: ${rec.program.min_score}/20`],
-        }));
-        setAiRecommendations(formatted);
-      } else {
+  useEffect(() => {
+    async function fetchAIRecommendations() {
+      if (!user || !isProfileComplete) {
         setAiRecommendations([]);
-        setAiError("No recommendations were returned.");
+        setAiError("");
+        setIsLoadingAI(false);
+        return;
       }
-    } catch (error: unknown) {
-      setAiRecommendations([]);
-      setAiError(error instanceof Error ? error.message : "AI recommendations are temporarily unavailable.");
-    } finally {
-      setIsLoadingAI(false);
+
+      setIsLoadingAI(true);
+      setAiError("");
+
+      const stream = user.bac_stream || "Sciences";
+      const avg = user.bac_average || 0;
+      const math = user.math_grade || 0;
+      const physics = user.physics_grade || 0;
+      const subject3 = user.subject3_grade || 0;
+      const wilaya = user.wilaya || "Algiers";
+
+      try {
+        const data = await api("/api/ai/recommend", {
+          method: "POST",
+          body: {
+            bac_stream: stream,
+            bac_average: avg,
+            math_grade: math,
+            physics_grade: physics,
+            subject3_grade: subject3,
+            wilaya,
+          },
+        });
+
+        if (data.recommendations) {
+          const formatted = data.recommendations.map((rec: any) => ({
+            label: rec.program.name,
+            university: rec.program.university,
+            minScore: rec.program.min_score,
+            minScore1: rec.program.min_score_1,
+            minScore2: rec.program.min_score_2,
+            minScore3: rec.program.min_score_3,
+            city: rec.program.city,
+            modules: rec.program.modules || [],
+            fit: Math.round(rec.match_percentage),
+            eligible: rec.eligible,
+            recommendationLevel: rec.recommendation_level,
+            reason: rec.reason,
+            whyRecommended: rec.why_recommended || [],
+            subjectBreakdown: rec.subject_breakdown || [],
+            scoreDetails: [`Required BAC: ${rec.program.min_score}/20`],
+          }));
+          setAiRecommendations(formatted);
+        } else {
+          setAiRecommendations([]);
+          setAiError("No recommendations were returned.");
+        }
+      } catch (error: unknown) {
+        setAiRecommendations([]);
+        setAiError(error instanceof Error ? error.message : "AI recommendations are temporarily unavailable.");
+      } finally {
+        setIsLoadingAI(false);
+      }
     }
-  }
-  
-  fetchAIRecommendations();
-}, [user, user?.bac_average, user?.math_grade, user?.physics_grade, user?.subject3_grade, user?.wilaya]);
+
+    fetchAIRecommendations();
+  }, [isProfileComplete, user, user?.bac_average, user?.math_grade, user?.physics_grade, user?.subject3_grade, user?.wilaya]);
 
   const aiTopCards = aiRecommendations.slice(0, 3).map((item) => {
     const visual = recommendationVisual(getSpecialityTrack(item.label));
@@ -231,7 +245,7 @@ function DashboardHome({
       : 0;
   const nextStepItems = [
     eligibleCount > 0
-      ? `${eligibleCount} speciality${eligibleCount > 1 ? "ies are" : " is"} already within your current BAC range.`
+      ? `${eligibleCount} specialit${eligibleCount > 1 ? "ies are" : " is"} already within your current BAC range.`
       : "No speciality is fully unlocked yet with the current BAC profile.",
     topRecommendation
       ? topGap > 0
@@ -244,18 +258,18 @@ function DashboardHome({
   ];
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 dashboard-page">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-blue-300/80">Dashboard</p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-white lg:text-[3.2rem]">Welcome back, {userName}!</h1>
-          <p className="mt-2 text-[15px] text-blue-300/85">Your current profile, eligibility, and recommended options in one place.</p>
+          <p className="mt-2 text-[15px] text-blue-300/85">
+            {isProfileComplete
+              ? "Your current profile, eligibility, and recommended options in one place."
+              : "Complete My Profile first to unlock your AI recommendations in the dashboard."}
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-white/8 bg-white/[0.04] px-4 py-2.5">
-            <p className="text-xs text-blue-200/60">Current focus</p>
-            <p className="mt-1 text-sm font-semibold text-white">Eligible specialties first</p>
-          </div>
+        <div className="flex items-center">
           <button className="rounded-xl border border-white/8 bg-white/[0.04] p-3 transition hover:bg-white/[0.08]">
             <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -267,7 +281,7 @@ function DashboardHome({
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
-          [`${profileCompletion}%`, "Profile Complete", profileCompletion > 0 ? "+progress" : "Start", "bg-blue-500/20", "text-blue-300", "\u{2705}"],
+          [`${daysToDeadline} day${daysToDeadline === 1 ? "" : "s"}`, "Ministry Submission", deadlineStatus, "bg-rose-500/20", "text-rose-300", "\u{23F0}"],
           [`${universitiesMatched}`, "Universities Matched", universitiesMatched > 0 ? "Ready" : "New", "bg-green-500/20", "text-green-400", "\u{1F3EB}"],
           [bacAverage.toFixed(2), "BAC Average", bacAverage > 0 ? "Updated" : "Pending", "bg-purple-500/20", "text-purple-300", "\u{1F4C8}"],
           [topRecommendation?.title || "Pending", "Top Match", topRecommendation ? topRecommendation.status : "Waiting", "bg-cyan-500/20", "text-cyan-300", "\u{1F3AF}"],
@@ -313,6 +327,17 @@ function DashboardHome({
           {isLoadingAI ? (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-blue-200 md:col-span-3">
               🧠 AI is analyzing your profile...
+            </div>
+          ) : !isProfileComplete ? (
+            <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-5 text-sm text-amber-100 md:col-span-3">
+              Complete your academic information in My Profile before accessing AI recommendations.
+              <button
+                type="button"
+                onClick={() => goSection("profile")}
+                className="mt-4 inline-flex rounded-xl border border-amber-200/25 bg-amber-300/10 px-4 py-2 font-semibold text-amber-50 transition hover:bg-amber-300/20"
+              >
+                Open My Profile
+              </button>
             </div>
           ) : aiError ? (
             <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4 text-sm text-amber-100 md:col-span-3">
@@ -442,7 +467,7 @@ function DashboardHome({
         <div className="glass-panel rounded-2xl p-6">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-lg font-bold">What to Improve</h3>
+              <h3 className="text-lg font-bold">summary</h3>
               <p className="mt-1 text-sm text-blue-200/75">Short guidance based on your profile and current recommendations.</p>
             </div>
             <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100">
@@ -483,13 +508,19 @@ type UniversityCard = {
   image?: string;
   imageMode?: "photo" | "logo";
   logoText?: string;
+  logoBackground?: string;
   website?: string;
   badge: string;
   specialities: UniversitySpeciality[];
 };
 
-const UNIVERSITY_MEDIA: Record<string, { image?: string; imageMode?: "photo" | "logo"; logoText?: string }> = {
-  "ENP": { image: "https://www.enp.edu.dz/storage/2020/06/logoBlanc-300x262.png", imageMode: "logo", logoText: "ENP" },
+const UNIVERSITY_MEDIA: Record<string, { image?: string; imageMode?: "photo" | "logo"; logoText?: string; logoBackground?: string }> = {
+  "ENP": {
+    image: "https://www.enp.edu.dz/storage/2020/06/logoBlanc-300x262.png",
+    imageMode: "logo",
+    logoText: "ENP",
+    logoBackground: "linear-gradient(145deg, #12457d 0%, #1f6ec0 100%)",
+  },
   "ESI": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/ESI_Logo.png", imageMode: "logo", logoText: "ESI" },
   "HEC Algiers": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/Logo_hec.jpg", imageMode: "logo", logoText: "HEC" },
   "USTHB": { image: "https://commons.wikimedia.org/wiki/Special:FilePath/USTHB.JPG", imageMode: "photo", logoText: "USTHB" },
@@ -524,6 +555,7 @@ function attachUniversityImage(univ: UniversityCard): UniversityCard {
     image: media?.image || univ.image,
     imageMode: media?.imageMode || univ.imageMode,
     logoText: media?.logoText || univ.logoText,
+    logoBackground: media?.logoBackground || univ.logoBackground,
     website: websites[univ.name] || univ.website,
   };
 }
@@ -776,49 +808,53 @@ function UniversitiesSection() {
       <div className="glass-panel rounded-3xl p-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div>
-            <label className="mb-2 block text-sm font-medium text-blue-200">Wilaya</label>
+            <label htmlFor="wilayaFilter" className="mb-2 block text-sm font-medium text-blue-200">Wilaya</label>
             <select
+              id="wilayaFilter"
               value={wilayaFilter}
               onChange={(e) => setWilayaFilter(e.target.value)}
               className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white"
             >
-              <option style={{ color: "#0b1d33", backgroundColor: "#ffffff" }}>All Wilayas</option>
+              <option value="All Wilayas">All Wilayas</option>
               {WILAYAS.map((wilaya) => (
-                <option key={wilaya} style={{ color: "#0b1d33", backgroundColor: "#ffffff" }}>
+                <option key={wilaya} value={wilaya}>
                   {wilaya}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-blue-200">Field of Study</label>
+            <label htmlFor="fieldFilter" className="mb-2 block text-sm font-medium text-blue-200">Field of Study</label>
             <select
+              id="fieldFilter"
               value={fieldFilter}
               onChange={(e) => setFieldFilter(e.target.value)}
               className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white"
             >
-              <option>All Fields</option>
-              <option>Engineering</option>
-              <option>Medicine</option>
-              <option>Business</option>
+              <option value="All Fields">All Fields</option>
+              <option value="Engineering">Engineering</option>
+              <option value="Medicine">Medicine</option>
+              <option value="Business">Business</option>
             </select>
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-blue-200">Institution Type</label>
+            <label htmlFor="typeFilter" className="mb-2 block text-sm font-medium text-blue-200">Institution Type</label>
             <select
+              id="typeFilter"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
               className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-white"
             >
-              <option>All Types</option>
-              <option>University</option>
-              <option>Grande Ecole</option>
-              <option>Institute</option>
+              <option value="All Types">All Types</option>
+              <option value="University">University</option>
+              <option value="Grande Ecole">Grande Ecole</option>
+              <option value="Institute">Institute</option>
             </select>
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium text-blue-200">Min. BAC Score</label>
+            <label htmlFor="minBacFilter" className="mb-2 block text-sm font-medium text-blue-200">Min. BAC Score</label>
             <input
+              id="minBacFilter"
               type="number"
               value={minBacFilter}
               onChange={(e) => setMinBacFilter(e.target.value)}
@@ -833,24 +869,31 @@ function UniversitiesSection() {
         {filteredUniversities.map((univ) => (
           <div key={univ.name} className="glass-panel card-hover overflow-hidden rounded-3xl">
             <div
-              className={`relative flex h-24 items-center justify-center overflow-hidden bg-gradient-to-r ${univ.gradient}`}
+              className={`university-card-media relative flex h-24 items-center justify-center overflow-hidden bg-gradient-to-r ${univ.gradient}`}
               style={
                 univ.image
                   ? {
                       backgroundImage:
                         univ.imageMode === "logo"
-                          ? `url(${univ.image})`
+                          ? univ.logoBackground
+                            ? `${univ.logoBackground}, url(${univ.image})`
+                            : `url(${univ.image})`
                           : `linear-gradient(rgba(9, 18, 32, 0.18), rgba(9, 18, 32, 0.48)), url(${univ.image})`,
-                      backgroundSize: univ.imageMode === "logo" ? "contain" : "cover",
-                      backgroundPosition: "center",
-                      backgroundRepeat: "no-repeat",
-                      backgroundColor: univ.imageMode === "logo" ? "rgba(255,255,255,0.92)" : undefined,
+                      backgroundSize:
+                        univ.imageMode === "logo"
+                          ? univ.logoBackground
+                            ? "cover, contain"
+                            : "contain"
+                          : "cover",
+                      backgroundPosition: univ.imageMode === "logo" && univ.logoBackground ? "center, center" : "center",
+                      backgroundRepeat: univ.imageMode === "logo" && univ.logoBackground ? "no-repeat, no-repeat" : "no-repeat",
+                      backgroundColor: univ.imageMode === "logo" && !univ.logoBackground ? "rgba(255,255,255,0.92)" : undefined,
                     }
                   : undefined
               }
             >
               {univ.image && univ.imageMode !== "logo" ? (
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/25 to-transparent" />
+                <div className="university-card-photo-overlay absolute inset-0 bg-gradient-to-t from-slate-950/25 to-transparent" />
               ) : null}
               {!univ.image && univ.logoText ? (
                 <div className="relative z-10 rounded-2xl border border-white/20 bg-slate-950/20 px-5 py-2 shadow-lg backdrop-blur-sm">
@@ -1330,52 +1373,36 @@ function CareersSection({
 
   return (
     <section className="space-y-8">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
         <div className="max-w-3xl">
           <p className="text-sm font-medium text-cyan-200/75">Career Explorer</p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-white md:text-4xl">Career paths that match your profile</h1>
           <p className="mt-3 text-blue-300">Explore realistic options based on your BAC profile, current strengths, and the type of future you want to build.</p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Top Match</p>
-            <p className="mt-1 text-sm font-semibold text-white">{topCareer?.title || "Not available"}</p>
-          </div>
-          <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Profile Context</p>
-            <p className="mt-1 text-sm font-semibold text-white">
-              BAC {bacAverage > 0 ? bacAverage.toFixed(2) : "Not set"} • {bacStream || "Stream not set"}
-            </p>
-          </div>
-        </div>
       </div>
 
       {topCareer ? (
-        <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-cyan-500/12 via-slate-900/30 to-blue-500/12 p-6 md:p-7">
-          <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr] xl:items-center">
-            <div>
+        <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-cyan-500/10 via-slate-950/24 to-blue-500/10 p-6 md:p-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-3xl">
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">Best current fit</span>
+                <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold text-cyan-100">Top Match</span>
                 <span className="rounded-full border border-white/8 bg-white/[0.05] px-3 py-1 text-xs text-blue-100">{topCareer.demand}</span>
+                <span className={`rounded-full bg-white/10 px-3 py-1 text-xs font-medium ${fitTone(topCareer.fitScore || 0)}`}>
+                  Fit {topCareer.fitScore || 0}%
+                </span>
               </div>
               <h2 className="text-2xl font-bold text-white md:text-3xl">{topCareer.title}</h2>
-              <p className="mt-3 max-w-2xl text-blue-100/90">{topCareer.desc}</p>
-              <p className="mt-4 text-sm text-cyan-100">Suggested focus: {(topCareer.studyFocus || []).slice(0, 3).join(" • ")}</p>
+              <p className="mt-3 text-blue-100/90">{topCareer.desc}</p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-              <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Fit Score</p>
-                <p className={`mt-2 text-2xl font-bold ${fitTone(topCareer.fitScore || 0)}`}>{topCareer.fitScore || 0}%</p>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Estimated Salary</p>
-                <p className="mt-2 text-2xl font-bold text-white">{topCareer.salary}</p>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-blue-200/55">Next Step</p>
-                <p className="mt-2 text-sm font-medium text-blue-100">{topCareer.nextStep}</p>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedCareer(topCareer)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+            >
+              <span>View career path</span>
+              <span>{"->"}</span>
+            </button>
           </div>
         </div>
       ) : null}
@@ -1471,57 +1498,110 @@ function CareersSection({
             <span className={`rounded-full bg-white/10 px-3 py-1 text-sm ${fitTone(selectedCareer.fitScore || 0)}`}>Fit {selectedCareer.fitScore || 0}%</span>
           </div>
 
-          <div className="mb-4 grid gap-4 md:grid-cols-3">
+          <div className="mb-6 grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-blue-200">Suggested focus</p>
-              <p className="mt-2 text-blue-100">{(selectedCareer.studyFocus || []).join(" | ")}</p>
+              <p className="text-sm text-blue-200">Best study focus now</p>
+              <p className="mt-2 text-blue-100">{selectedCareer.studyFocus?.[0] || "General academic preparation"}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-blue-200">Best next step</p>
+              <p className="text-sm text-blue-200">Immediate next step</p>
               <p className="mt-2 text-blue-100">{selectedCareer.nextStep}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="text-sm text-blue-200">Typical opportunities</p>
-              <p className="mt-2 text-blue-100">{(selectedCareer.opportunities || []).slice(0, 2).join(" | ")}</p>
+              <p className="text-sm text-blue-200">Typical entry role</p>
+              <p className="mt-2 text-blue-100">{selectedCareer.opportunities?.[0] || "Career path"}</p>
             </div>
           </div>
 
-          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="mb-6 rounded-3xl border border-cyan-300/15 bg-cyan-400/8 p-5">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">Career Path Overview</p>
+                <h3 className="mt-2 text-xl font-semibold text-white">A clearer path from university to profession</h3>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-blue-100">
+                Start with <span className="font-semibold text-white">{selectedCareer.studyFocus?.[0] || "core foundations"}</span>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {selectedCareer.roadmap.slice(0, 3).map((step, index) => (
+                <div key={step} className="rounded-2xl border border-white/10 bg-slate-950/25 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-cyan-100/60">Step {index + 1}</p>
+                  <p className="mt-2 text-sm leading-6 text-blue-100">{step}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-sm text-blue-200">Recommended university tracks</p>
-              <p className="mt-2 text-blue-100">{(selectedCareer.universityTracks || []).join(" | ")}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(selectedCareer.universityTracks || []).map((track) => (
+                  <span key={track} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-blue-100">
+                    {track}
+                  </span>
+                ))}
+              </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-sm text-blue-200">Tools and software to learn</p>
-              <p className="mt-2 text-blue-100">{(selectedCareer.tools || []).join(" | ")}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(selectedCareer.tools || []).map((tool) => (
+                  <span key={tool} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-blue-100">
+                    {tool}
+                  </span>
+                ))}
+              </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-sm text-blue-200">Useful certifications</p>
-              <p className="mt-2 text-blue-100">{(selectedCareer.certifications || []).join(" | ")}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(selectedCareer.certifications || []).map((certification) => (
+                  <span key={certification} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-blue-100">
+                    {certification}
+                  </span>
+                ))}
+              </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-sm text-blue-200">Typical daily tasks</p>
-              <p className="mt-2 text-blue-100">{(selectedCareer.dailyTasks || []).join(" | ")}</p>
+              <div className="mt-3 space-y-2">
+                {(selectedCareer.dailyTasks || []).map((task) => (
+                  <div key={task} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-blue-100">
+                    {task}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-4">
             <p className="text-sm text-blue-200">Common challenges to expect</p>
-            <p className="mt-2 text-blue-100">{(selectedCareer.challenges || []).join(" | ")}</p>
+            <div className="mt-3 grid gap-2 md:grid-cols-3">
+              {(selectedCareer.challenges || []).map((challenge) => (
+                <div key={challenge} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-blue-100">
+                  {challenge}
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="mb-3 text-lg font-semibold">Roadmap</p>
-              <ol className="space-y-2 text-sm text-blue-100">
-                {selectedCareer.roadmap.map((step) => (
-                  <li key={step} className="rounded-lg bg-white/5 px-3 py-2">{step}</li>
+              <p className="mb-3 text-lg font-semibold">Full Roadmap</p>
+              <ol className="space-y-3 text-sm text-blue-100">
+                {selectedCareer.roadmap.map((step, index) => (
+                  <li key={step} className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                    <span className="text-xs uppercase tracking-[0.16em] text-cyan-100/60">Stage {index + 1}</span>
+                    <p className="mt-2 leading-6 text-blue-100">{step}</p>
+                  </li>
                 ))}
               </ol>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-              <p className="mb-3 text-lg font-semibold">Key Skills</p>
+              <p className="mb-3 text-lg font-semibold">Key Skills and Outcomes</p>
               <div className="mb-5 flex flex-wrap gap-2">
                 {selectedCareer.skills.map((skill) => (
                   <span key={skill} className="rounded-full bg-purple-500/20 px-3 py-1 text-sm text-purple-200">
@@ -1530,11 +1610,11 @@ function CareersSection({
                 ))}
               </div>
               <p className="mb-3 text-lg font-semibold">Career Opportunities</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-2">
                 {selectedCareer.opportunities.map((opportunity) => (
-                  <span key={opportunity} className="rounded-full bg-cyan-500/20 px-3 py-1 text-sm text-cyan-200">
+                  <div key={opportunity} className="rounded-xl border border-cyan-300/10 bg-cyan-400/10 px-3 py-3 text-sm text-cyan-100">
                     {opportunity}
-                  </span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -2082,7 +2162,7 @@ function ProfileSection({
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
+              <div className="grid gap-4">
                 <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-4 md:p-5">
                   <label className="mb-2 block text-sm font-medium text-slate-200">Wilaya of Origin</label>
                   <select
@@ -2097,24 +2177,6 @@ function ProfileSection({
                     ))}
                   </select>
                   <p className="mt-2 text-xs text-slate-300/65">Used to prioritize nearby universities in the recommendation flow.</p>
-                </div>
-
-                <div className="rounded-3xl border border-white/8 bg-white/[0.03] p-4 md:p-5">
-                  <p className="text-sm font-medium text-slate-200">Quick Summary</p>
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div className="flex items-center justify-between border-b border-white/8 pb-3">
-                      <span className="text-slate-300/75">Eligible Programs</span>
-                      <span className="font-semibold text-white">{eligiblePrograms}</span>
-                    </div>
-                    <div className="flex items-center justify-between border-b border-white/8 pb-3">
-                      <span className="text-slate-300/75">Selected Branch</span>
-                      <span className="font-semibold text-white">{form.bac_stream}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-300/75">Preferred Wilaya</span>
-                      <span className="font-semibold text-white">{form.wilaya}</span>
-                    </div>
-                  </div>
                 </div>
               </div>
             </form>
@@ -2164,12 +2226,6 @@ function DashboardPageContent() {
   } | null>(null);
 
 const [profileVersion, setProfileVersion] = useState(0);
-
-// Quand onUserUpdated est appelé, incrémente la version
-const handleUserUpdated = (updatedUser: any) => {
-  setUser(updatedUser);
-  setProfileVersion(v => v + 1); // ← FORCE LE RECHARGEMENT
-};
   const profileCompletion = useMemo(() => {
     if (!user) return 0;
     let done = 0;
@@ -2182,12 +2238,21 @@ const handleUserUpdated = (updatedUser: any) => {
     if ((user.wilaya || "").trim() !== "") done += 1;
     return Math.round((done / total) * 100);
   }, [user]);
+  const isProfileComplete = profileCompletion === 100;
 
   const universitiesMatched = useMemo(() => {
     const bac = Number(user?.bac_average || 0);
     if (bac <= 0) return 0;
     return universityCards.filter((u) => Number(u.score) <= bac).length;
   }, [user]);
+
+  const ministryDeadline = useMemo(() => new Date("2026-07-31T23:59:59Z"), []);
+  const daysToDeadline = useMemo(() => {
+    const now = new Date();
+    const diffMs = ministryDeadline.getTime() - now.getTime();
+    return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  }, [ministryDeadline]);
+  const deadlineStatus = daysToDeadline === 0 ? "Deadline passed" : daysToDeadline <= 3 ? "Final call" : "Submit soon";
 
   
   useEffect(() => {
@@ -2207,6 +2272,13 @@ const handleUserUpdated = (updatedUser: any) => {
         router.replace("/login");
       });
   }, [router]);
+
+  useEffect(() => {
+    if (!authChecked || !user) return;
+    if (!isProfileComplete && section === "dashboard") {
+      router.replace("/dashboard?section=profile");
+    }
+  }, [authChecked, isProfileComplete, router, section, user]);
 
   const active = useMemo(() => {
     if (section === "assessment") return "AI Assessment";
@@ -2262,7 +2334,16 @@ const handleUserUpdated = (updatedUser: any) => {
     );
   }
 
-  return <AppShell active={active} userName={user?.name || "Student"} userBacStream={user?.bac_stream || "Sciences"}>{content}</AppShell>;
+  return (
+    <AppShell
+      active={active}
+      userName={user?.name || "Student"}
+      userBacStream={user?.bac_stream || "Sciences"}
+      isProfileComplete={isProfileComplete}
+    >
+      {content}
+    </AppShell>
+  );
 }
 
 export default function DashboardPage() {
